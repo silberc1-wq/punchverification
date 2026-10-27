@@ -71,7 +71,7 @@ main { padding-block: 22px 60px; }
 .btn.danger.solid { background: var(--red); color: var(--surface); border-color: var(--red); }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 .btn.small { padding: 4px 10px; font-size: .88rem; }
-input[type=text], input[type=password], input[type=search], input[type=number], input[type=time], input[type=date], select, textarea {
+input[type=text], input[type=password], input[type=tel], input[type=email], input[type=url], input[type=search], input[type=number], input[type=time], input[type=date], select, textarea {
   border: 1px solid var(--line); background: var(--surface); border-radius: var(--r); padding: 7px 10px; min-width: 0; }
 textarea { width: 100%; resize: vertical; line-height: 1.5; }
 label.field { display: grid; gap: 4px; font-size: .86rem; font-weight: 600; color: var(--muted); }
@@ -194,6 +194,23 @@ tr.detail td { background: var(--sunk); padding: 14px 12px 16px; }
 .ed-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 14px; }
 .ed-actions .grow { flex: 1; }
 .confirm { display: inline-flex; flex-wrap: wrap; gap: 8px; align-items: center; background: var(--red-soft); padding: 6px 10px; border-radius: var(--r); }
+
+/* profile */
+.ed-tabs { margin-top: 14px; }
+.prof { display: grid; gap: 10px; margin-top: 14px; }
+.prof h4 { margin: 8px 0 0; font-family: var(--f-display); font-size: 1.05rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.prof .grid4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.prof-top { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
+.photo-box { display: grid; gap: 8px; justify-items: start; }
+.photo { width: 120px; height: 150px; border: 1px solid var(--line); border-radius: var(--r); background: var(--sunk); display: grid; place-items: center; overflow: hidden; font-size: .8rem; text-align: center; }
+.photo img { width: 100%; height: 100%; object-fit: cover; }
+.ssn-wrap { display: flex; gap: 6px; align-items: center; }
+.ssn-wrap input { flex: 1; min-width: 0; }
+.docs { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.doc-slot { border: 1px solid var(--line); border-radius: var(--r); padding: 10px; display: grid; gap: 8px; background: var(--sunk); }
+.doc-prev { height: 120px; display: grid; place-items: center; background: var(--surface); border-radius: 4px; overflow: hidden; font-size: .82rem; }
+.doc-prev img { max-width: 100%; max-height: 120px; }
+.pdf-tag { background: var(--red); color: var(--surface); font-weight: 700; font-size: .72rem; padding: 2px 6px; border-radius: 3px; }
 
 /* exceptions */
 .exc-list td { font-size: .9rem; }
@@ -790,10 +807,13 @@ var Engine = (function () {
 (function () {
   var K_SERVER = "punchcheck:server", K_SESS = "punchcheck:sess2";
   var DEFAULT_SERVER = "https://n8n.punchverification.com/webhook/punch-check";
+  // Each store has its own n8n workflow: store 101 = /webhook/punch-check, any other store = /webhook/punch-check-<number>
+  var K_STORE = "punchcheck:store", WEBHOOK_BASE = "https://n8n.punchverification.com/webhook/", store = "101";
+  function storeUrl(c) { c = String(c || "").trim().toLowerCase(); return WEBHOOK_BASE + (c === "101" ? "punch-check" : "punch-check-" + c); }
   var ITER = 250000;
   var te = new TextEncoder(), td = new TextDecoder();
   var server = "", user = "", loginKey = "", DK = null;
-  var S = {}, coreVer = 0, reports = {}, reportIds = [], subs = [], saving = Promise.resolve(), pendingSaves = 0;
+  var S = {}, coreVer = 0, reports = {}, reportIds = [], files = {}, fileIds = [], subs = [], saving = Promise.resolve(), pendingSaves = 0;
   var resolveReady, ready = new Promise(function (r) { resolveReady = r; });
 
   function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } }
@@ -833,8 +853,9 @@ var Engine = (function () {
   };
   function api(body) {
     return fetch(server, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-      .catch(function () { throw { code: "net", message: "Couldn't reach n8n at " + server + ". Check the address, and that the workflow is turned on (Active)." }; })
+      .catch(function () { throw { code: "net", message: "Couldn't reach store " + store + ". Check the store number and your internet connection, then try again." }; })
       .then(function (r) {
+        if (r.status === 404) throw { code: "nostore", message: "Store " + store + " isn't set up yet. Check the store number." };
         if (!r.ok) throw { code: "http", message: "n8n answered with error " + r.status + ". Check that the workflow is Active and the address ends in /webhook/punch-check." };
         return r.json().catch(function () { throw { code: "json", message: "n8n's answer wasn't readable. Check that the workflow ends with the “Reply to page” node." }; });
       }).then(function (j) { return Array.isArray(j) ? j[0] : j; });
@@ -849,8 +870,9 @@ var Engine = (function () {
 
   /* ---------- the store the page uses ---------- */
   function isReport(p) { return p.indexOf("reports/") === 0; }
+  function isFile(p) { return p.indexOf("files/") === 0; }
   function docSnap(p) {
-    var src = isReport(p) ? reports : S, has = Object.prototype.hasOwnProperty.call(src, p);
+    var src = isReport(p) ? reports : isFile(p) ? files : S, has = Object.prototype.hasOwnProperty.call(src, p);
     return { id: p.split("/").pop(), exists: has, data: function () { return has ? clone(src[p]) : undefined; }, metadata: { fromCache: false, hasPendingWrites: pendingSaves > 0 } };
   }
   function qs(c) {
@@ -881,6 +903,13 @@ var Engine = (function () {
     return {
       id: p.split("/").pop(), path: p,
       get: function () {
+        if (isFile(p)) {
+          if (files[p]) return Promise.resolve(docSnap(p));
+          return authed({ action: "get", key: "f:" + p.slice(6) }).then(function (j) {
+            if (j.ok && j.doc) return decStr(DK, j.doc.v).then(function (t) { files[p] = JSON.parse(t); return docSnap(p); });
+            return docSnap(p);
+          });
+        }
         if (!isReport(p) || reports[p]) return Promise.resolve(docSnap(p));
         return authed({ action: "get", key: "r:" + p.slice(8) }).then(function (j) {
           if (j.ok && j.doc) return decStr(DK, j.doc.v).then(function (t) { reports[p] = JSON.parse(t); return docSnap(p); });
@@ -888,6 +917,12 @@ var Engine = (function () {
         });
       },
       set: function (v) {
+        if (isFile(p)) {
+          files[p] = clone(v); var fid = p.slice(6); if (fileIds.indexOf(fid) < 0) fileIds.push(fid);
+          pendingSaves++;
+          return encStr(DK, JSON.stringify(v)).then(function (enc) { return authed({ action: "set", key: "f:" + fid, v: enc }); })
+            .then(function (j) { pendingSaves--; if (!j.ok) throw fail(j); }, function (e) { pendingSaves--; throw e; });
+        }
         if (isReport(p)) {
           reports[p] = clone(v); var id = p.slice(8); if (reportIds.indexOf(id) < 0) reportIds.push(id);
           pendingSaves++;
@@ -898,6 +933,7 @@ var Engine = (function () {
       },
       update: function (v) { var cur = isReport(p) ? reports[p] : S[p]; return this.set(Object.assign({}, cur || {}, v)); },
       delete: function () {
+        if (isFile(p)) { delete files[p]; fileIds = fileIds.filter(function (x) { return x !== p.slice(6); }); return authed({ action: "del", key: "f:" + p.slice(6) }).then(function () {}); }
         if (isReport(p)) { delete reports[p]; reportIds = reportIds.filter(function (x) { return x !== p.slice(8); }); return authed({ action: "del", key: "r:" + p.slice(8) }).then(function () {}); }
         var op = { p: p, del: true }; applyOp(op); fire(); return saveCore(op);
       },
@@ -939,6 +975,7 @@ var Engine = (function () {
     return authed({ action: "list" }).then(function (j) {
       if (!j.ok) throw fail(j);
       reportIds = j.reports || [];
+      fileIds = j.files || Object.keys(j.docs || {}).filter(function (k) { return k.indexOf("f:") === 0; }).map(function (k) { return k.slice(2); });
       var core = j.docs && j.docs.core;
       coreVer = core ? core.ver : 0;
       return decodeCore(core).then(function (s) { S = s; return j; });
@@ -971,7 +1008,7 @@ var Engine = (function () {
     ".logins .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}";
   function el(html) { var d = document.createElement("div"); d.innerHTML = html; return d.firstChild; }
   function head(t) { return "<div><p class=\"eyebrow\">Weekly Punch Check</p><h2 id=\"lockTitle\">" + t + "</h2></div>"; }
-  function srvLine() { return "<p class=\"srv\">Server: " + esc(server) + " <button class=\"link\" type=\"button\" id=\"lkSrv\">Change</button></p>"; }
+  function srvLine() { return "<p class=\"srv\">Store <b>" + esc(store) + "</b> <button class=\"link\" type=\"button\" id=\"lkStoreChg\">Change store</button></p>"; }
 
   function screen(mode, msg) {
     var ov = document.getElementById("lock");
@@ -985,7 +1022,7 @@ var Engine = (function () {
         "<div class=\"row\"><button class=\"btn primary\" type=\"submit\" id=\"lkGo\">Connect</button>" + m + "</div></form>";
     } else if (mode === "create") {
       h = "<form class=\"box\" id=\"lockForm\" data-mode=\"create\">" + head("Create the first login") +
-        "<p>Your n8n server is connected and empty. Enter the setup code you put in the workflow, then pick a username and password.</p>" +
+        "<p>Store " + esc(store) + " is set up and empty. Enter the setup code from its n8n workflow, then pick a username and password.</p>" +
         "<label class=\"field\">Setup code<input type=\"password\" id=\"lkCode\" autocomplete=\"off\" required></label>" +
         "<label class=\"field\">Username<input type=\"text\" id=\"lkUser\" autocomplete=\"username\" required></label>" +
         "<label class=\"field\">Password<input type=\"password\" id=\"lkPw\" autocomplete=\"new-password\" required minlength=\"8\"></label>" +
@@ -1000,13 +1037,14 @@ var Engine = (function () {
         "<div class=\"row\"><button class=\"btn\" type=\"button\" id=\"lkBack\">Back to sign in</button></div></div>";
     } else {
       h = "<form class=\"box\" id=\"lockForm\" data-mode=\"login\">" + head("Sign in") +
+        "<label class=\"field\">Store #<input type=\"text\" id=\"lkStore\" inputmode=\"numeric\" autocomplete=\"organization\" value=\"" + esc(store) + "\" required></label>" +
         "<label class=\"field\">Username<input type=\"text\" id=\"lkUser\" autocomplete=\"username\" required></label>" +
         "<label class=\"field\">Password<input type=\"password\" id=\"lkPw\" autocomplete=\"current-password\" required></label>" +
         "<div class=\"row\"><button class=\"btn primary\" type=\"submit\" id=\"lkGo\">Sign in</button>" + m + "</div>" +
-        "<button class=\"link\" type=\"button\" id=\"lkForgot\">Forgot password?</button>" + srvLine() + "</form>";
+        "<button class=\"link\" type=\"button\" id=\"lkForgot\">Forgot password?</button></form>";
     }
     ov.innerHTML = h;
-    var f = ov.querySelector("input"); if (f) f.focus();
+    var f = mode === "login" && store ? ov.querySelector("#lkUser") : ov.querySelector("input"); if (f) f.focus();
   }
   function busy(on, text) { var g = document.getElementById("lkGo"), m = document.getElementById("lkMsg"); if (g) g.disabled = on; if (m) { m.className = on ? "msg" : "msg err"; m.textContent = text || ""; } }
 
@@ -1043,15 +1081,16 @@ var Engine = (function () {
     });
   }
   function uploadAll(all) {
-    var core = {}, reps = {};
-    Object.keys(all).forEach(function (k) { if (isReport(k)) reps[k] = all[k]; else core[k] = all[k]; });
+    var core = {}, reps = {}, fls = {};
+    Object.keys(all).forEach(function (k) { if (isReport(k)) reps[k] = all[k]; else if (isFile(k)) fls[k] = all[k]; else core[k] = all[k]; });
     var docs = {};
     return encStr(DK, JSON.stringify(core)).then(function (v) {
       docs.core = v;
-      return Promise.all(Object.keys(reps).map(function (k) { return encStr(DK, JSON.stringify(reps[k])).then(function (v2) { docs["r:" + k.slice(8)] = v2; }); }));
+      return Promise.all(Object.keys(reps).map(function (k) { return encStr(DK, JSON.stringify(reps[k])).then(function (v2) { docs["r:" + k.slice(8)] = v2; }); })
+        .concat(Object.keys(fls).map(function (k) { return encStr(DK, JSON.stringify(fls[k])).then(function (v3) { docs["f:" + k.slice(6)] = v3; }); })));
     }).then(function () { return authed({ action: "replaceAll", docs: docs }); }).then(function (j) {
       if (!j.ok) throw fail(j);
-      reports = reps;
+      reports = reps; files = fls;
       return loadAll();
     }).then(function () { fire(); });
   }
@@ -1086,12 +1125,19 @@ var Engine = (function () {
         return api({ action: "setup", setupCode: code, user: u, salt: salt, loginKey: keys.loginKey, wrappedKey: wrapped });
       }).then(function (j) {
         if (!j.ok) throw fail(j);
-        user = u; loginKey = keys.loginKey;
+        user = u; loginKey = keys.loginKey; ls(K_STORE, store);
         return finishSignIn(pw);
       }).catch(function (er) { DK = null; busy(false, er.message || "Couldn't create the login."); });
     } else {
+      var sc = (document.getElementById("lkStore").value || "").trim();
+      if (!/^[A-Za-z0-9-]{1,20}$/.test(sc)) { busy(false, "Enter your store number."); return; }
+      store = sc; server = storeUrl(sc);
       busy(true, "Signing in…");
-      api({ action: "salt", user: u }).then(function (j) {
+      api({ action: "hello" }).then(function (h) {
+        if (!h || !h.ok) throw { message: "Store " + store + " didn't answer like a Punch Check store. Check the number." };
+        if (!h.setup) { screen("create", ""); throw { silent: true }; }
+        return api({ action: "salt", user: u });
+      }).then(function (j) {
         if (!j.ok) throw fail(j);
         return deriveAll(u, pw, j.salt);
       }).then(function (k) {
@@ -1101,15 +1147,15 @@ var Engine = (function () {
           user = j.name || u;
           return unwrapDK(k.kek, j.wrappedKey);
         });
-      }).then(function (dk) { DK = dk; return finishSignIn(pw); })
-        .catch(function (er) { user = ""; loginKey = ""; DK = null; busy(false, er.message || ERR.login); });
+      }).then(function (dk) { DK = dk; ls(K_STORE, store); return finishSignIn(pw); })
+        .catch(function (er) { user = ""; loginKey = ""; DK = null; if (er && er.silent) return; busy(false, er.message || ERR.login); });
     }
   });
   document.addEventListener("click", function (e) {
     var id = e.target && e.target.id;
     if (id === "lkForgot") screen("forgot");
     if (id === "lkBack") screen("login");
-    if (id === "lkSrv") screen("server");
+    if (id === "lkStoreChg") screen("login");
     if (id === "lockBtn") { ss(K_SESS, null); location.reload(); }
   });
 
@@ -1121,7 +1167,7 @@ var Engine = (function () {
   function addBar() {
     if (document.getElementById("lockBtn")) return;
     var pill = document.getElementById("statusPill"); if (!pill) return;
-    var wrap = el("<span class=\"status-pill\" style=\"padding-bottom:8px\">Signed in as <b>" + esc(user) + "</b> · saved on n8n, encrypted<button type=\"button\" id=\"lockBtn\">Lock</button></span>");
+    var wrap = el("<span class=\"status-pill\" style=\"padding-bottom:8px\">Store <b>" + esc(store) + "</b> · signed in as <b>" + esc(user) + "</b> · encrypted<button type=\"button\" id=\"lockBtn\">Lock</button></span>");
     pill.parentNode.insertBefore(wrap, pill.nextSibling);
     pill.parentNode.insertBefore(el("<span id=\"syncMsg\" role=\"status\"></span>"), wrap.nextSibling);
   }
@@ -1205,17 +1251,35 @@ var Engine = (function () {
     return e + " employees and " + w + " saved " + (w === 1 ? "week" : "weeks");
   }
   var pending = null;
-  function box(html) { var b = document.getElementById("importBox"); b.hidden = false; b.dataset.pending = pending ? "1" : "0"; b.innerHTML = html; }
+  function box(html) { var b = document.getElementById("importBox"); b.hidden = false; b.dataset.pending = (pending || pendingLocked || /<(button|input)/.test(html)) ? "1" : "0"; b.innerHTML = html; }
   document.addEventListener("click", function (e) {
     var id = e.target && e.target.id;
     if (id === "bkSave") {
-      box("<span>Collecting saved weeks from n8n…</span>");
-      Promise.all(reportIds.map(function (rid) { return dref("reports/" + rid).get(); })).then(function () {
-        var all = clone(S); Object.keys(reports).forEach(function (k) { all[k] = reports[k]; });
-        var d = new Date(), stamp = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
-        saveFile({ filename: "punch-check-backup-" + stamp + ".json", data: JSON.stringify({ app: "weekly-punch-check", version: 1, savedAt: d.toISOString(), data: all }) });
-        box("<span>Backup saved with " + counts(all) + ". The backup file isn't encrypted, so keep it somewhere private.</span>");
-      }).catch(function (er) { box("<span>" + esc(er.message || "Couldn't make the backup.") + "</span>"); });
+      box("<span>Backups include SSNs and ID pictures, so they're locked with a backup password. Pick one and keep it safe.</span>" +
+        "<input type=\"password\" id=\"bkPw\" placeholder=\"Backup password (8+ characters)\" autocomplete=\"new-password\"> <input type=\"password\" id=\"bkPw2\" placeholder=\"Type it again\" autocomplete=\"new-password\">" +
+        "<button class=\"btn small primary\" type=\"button\" id=\"bkGo\">Save locked backup</button><button class=\"btn small\" type=\"button\" id=\"bkNo\">Cancel</button>");
+      var bp = document.getElementById("bkPw"); if (bp) bp.focus();
+    }
+    if (id === "bkGo") {
+      var pw1 = document.getElementById("bkPw").value, pw2 = document.getElementById("bkPw2").value;
+      if (pw1.length < 8) { alertBox("Use a backup password of at least 8 characters."); return; }
+      if (pw1 !== pw2) { alertBox("The two backup passwords don't match."); return; }
+      box("<span>Collecting saved weeks and documents from n8n…</span>");
+      Promise.all(reportIds.map(function (rid) { return dref("reports/" + rid).get(); }).concat(fileIds.map(function (fid) { return dref("files/" + fid).get(); }))).then(function () {
+        var all = clone(S); Object.keys(reports).forEach(function (k) { all[k] = reports[k]; }); Object.keys(files).forEach(function (k) { all[k] = files[k]; });
+        var salt = newSalt();
+        return backupKey(pw1, salt).then(function (k) { return encStr(k, JSON.stringify(all)); }).then(function (enc) {
+          var d = new Date(), stamp = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+          saveFile({ filename: "punch-check-backup-store" + store + "-" + stamp + ".json", data: JSON.stringify({ app: "weekly-punch-check", version: 2, encrypted: true, store: store, savedAt: d.toISOString(), summary: counts(all), salt: salt, data: enc }) });
+          box("<span>Locked backup saved with " + counts(all) + ". You'll need the backup password to load it.</span>");
+        });
+      }).catch(function (er) { box("<span>" + esc((er && er.message) || "Couldn't make the backup.") + "</span>"); });
+    }
+    if (id === "bkUnlock" && pendingLocked) {
+      var pwu = document.getElementById("bkPwU").value;
+      backupKey(pwu, pendingLocked.salt).then(function (k) { return decStr(k, pendingLocked.data); }).then(function (t) {
+        var o2 = { data: JSON.parse(t), savedAt: pendingLocked.savedAt }; pendingLocked = null; confirmRestore(o2);
+      }).catch(function () { alertBox("That backup password isn't right."); });
     }
     if (id === "bkYes" && pending) {
       var data = pending.data; pending = null;
@@ -1223,7 +1287,7 @@ var Engine = (function () {
       uploadAll(data).then(function () { box("<span>Backup loaded: " + counts(data) + ". Every device signed in will get it.</span>"); })
         .catch(function (er) { box("<span>" + esc(er.message || "Couldn't load the backup.") + "</span>"); });
     }
-    if (id === "bkNo") { pending = null; document.getElementById("importBox").hidden = true; }
+    if (id === "bkNo") { pending = null; pendingLocked = null; document.getElementById("importBox").hidden = true; }
   });
   document.addEventListener("change", function (e) {
     if (!e.target || e.target.id !== "bkLoad") return;
@@ -1232,22 +1296,41 @@ var Engine = (function () {
     f.text().then(function (t) {
       var o; try { o = JSON.parse(t); } catch (x) { o = null; }
       if (!o || o.app !== "weekly-punch-check" || !o.data) { pending = null; box("<span>That file isn't a Punch Check backup.</span>"); return; }
-      pending = o;
-      box("<span>This backup has " + counts(o.data) + (o.savedAt ? " (saved " + new Date(o.savedAt).toLocaleDateString() + ")" : "") +
-        ". Loading it replaces the schedules, rules and saved weeks on n8n for everyone.</span>" +
-        "<button class=\"btn small primary\" type=\"button\" id=\"bkYes\">Replace with backup</button><button class=\"btn small\" type=\"button\" id=\"bkNo\">Cancel</button>");
+      if (o.encrypted) {
+        pendingLocked = o;
+        box("<span>This backup is locked" + (o.summary ? " (" + esc(o.summary) + ")" : "") + ". Enter its backup password.</span>" +
+          "<input type=\"password\" id=\"bkPwU\" placeholder=\"Backup password\" autocomplete=\"off\"><button class=\"btn small primary\" type=\"button\" id=\"bkUnlock\">Unlock</button><button class=\"btn small\" type=\"button\" id=\"bkNo\">Cancel</button>");
+        var u = document.getElementById("bkPwU"); if (u) u.focus();
+        return;
+      }
+      confirmRestore(o);
     });
   });
+  var pendingLocked = null;
+  function confirmRestore(o) {
+    pending = o;
+    box("<span>This backup has " + counts(o.data) + (o.savedAt ? " (saved " + new Date(o.savedAt).toLocaleDateString() + ")" : "") +
+      ". Loading it replaces the schedules, rules, saved weeks and documents of store " + esc(store) + " for everyone.</span>" +
+      "<button class=\"btn small primary\" type=\"button\" id=\"bkYes\">Replace with backup</button><button class=\"btn small\" type=\"button\" id=\"bkNo\">Cancel</button>");
+  }
+  function alertBox(t) { var b = document.getElementById("importBox"); var m = b.querySelector(".bk-err"); if (!m) { m = document.createElement("b"); m.className = "bk-err"; m.style.color = "var(--red)"; b.appendChild(m); } m.textContent = t; }
+  function backupKey(pw, saltB64) {
+    return crypto.subtle.importKey("raw", te.encode(pw), "PBKDF2", false, ["deriveKey"]).then(function (base) {
+      return crypto.subtle.deriveKey({ name: "PBKDF2", salt: unb64(saltB64), iterations: ITER, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+    });
+  }
 
   /* ---------- start ---------- */
   function start() {
     var st = document.createElement("style"); st.textContent = css; document.head.appendChild(st);
     if (!window.crypto || !crypto.subtle) {
-      screen("login"); document.getElementById("lockForm").innerHTML = "<h2>Can't sign in here</h2><p>This browser blocks the security features the login needs. Open the page from https://financialclaritypro.com in Chrome, Edge or Safari.</p>";
+      screen("login"); document.getElementById("lockForm").innerHTML = "<h2>Can't sign in here</h2><p>This browser blocks the security features the login needs. Open https://punchverification.com in Chrome, Edge or Safari.</p>";
       return;
     }
-    server = ls(K_SERVER) || DEFAULT_SERVER;
-    if (/sslip\.io|n8n\.financialclaritypro\.com/i.test(server)) { server = DEFAULT_SERVER; ls(K_SERVER, server); ss(K_SESS, null); } // moved to our own domain
+    var qp = null; try { qp = new URLSearchParams(location.search).get("store"); } catch (e) {}
+    if (qp && /^[A-Za-z0-9-]{1,20}$/.test(qp)) { store = qp; ls(K_STORE, qp); }
+    else store = ls(K_STORE) || "101";
+    server = storeUrl(store);
     var sess = null; try { sess = JSON.parse(ss(K_SESS) || "null"); } catch (e) {}
     if (sess && sess.server === server && sess.dk) {
       user = sess.user; loginKey = sess.loginKey;
@@ -1255,13 +1338,12 @@ var Engine = (function () {
         .catch(function () { ss(K_SESS, null); screen("login"); });
       return;
     }
-    if (!server) { screen("server"); return; }
     screen("login", "");
     busy(true, "Connecting\u2026");
     api({ action: "hello" }).then(function (j) {
-      if (!j || !j.ok) throw { message: "Your n8n answered, but not like the Punch Check workflow." };
+      if (!j || !j.ok) throw { message: "Store " + store + " didn't answer like a Punch Check store." };
       if (!j.setup) screen("create"); else busy(false, "");
-    }).catch(function (er) { screen("server", er.message); });
+    }).catch(function (er) { busy(false, er.message); });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();
 })();
@@ -1346,7 +1428,7 @@ var Engine = (function () {
 
   /* ---------------- status ---------------- */
   function renderStatus() {
-    var n = Object.keys(st.employees).filter(function (k) { return st.employees[k].active !== false; }).length;
+    var n = Object.keys(st.employees).filter(function (k) { return isActive(st.employees[k]); }).length;
     var pill = $("#statusPill");
     if (st.dbState === "loading") pill.textContent = "Connecting…";
     else if (st.dbState === "none") pill.textContent = "Not saving in this view";
@@ -2066,7 +2148,7 @@ var Engine = (function () {
     if (!st.empLoaded) { el.innerHTML = "<div class=\"panel empty\"><p>Loading schedules…</p></div>"; return; }
     var q = ($("#empSearch").value || "").toLowerCase(), dep = $("#empDept").value, showIn = $("#showInactive").checked;
     var list = Object.keys(st.employees).map(function (k) { return st.employees[k]; }).filter(function (e) {
-      if (!showIn && e.active === false) return false;
+      if (!showIn && !isActive(e)) return false;
       if (dep && e.dept !== dep) return false;
       if (q && empName(e).toLowerCase().indexOf(q) < 0 && String(e.id).indexOf(q) < 0) return false;
       return true;
@@ -2079,18 +2161,142 @@ var Engine = (function () {
     var rows = "", lastDept = null;
     list.forEach(function (e) {
       if (e.dept !== lastDept) { lastDept = e.dept; rows += "<tr class=\"dept-row\"><td colspan=\"10\">" + esc(e.dept || "No department") + "</td></tr>"; }
-      rows += "<tr class=\"emp-row" + (e.active === false ? " inactive" : "") + "\" data-emp=\"" + esc(e.id) + "\" tabindex=\"0\"><td class=\"idtag\">" + esc(e.id) + "</td><td><b>" + esc(empName(e)) + "</b>" + (e.active === false ? " <span class=\"chip\">Inactive</span>" : "") + "</td>" +
+      var pe = e.profile || {}, ended = pe.end && pe.end <= todayISO();
+      rows += "<tr class=\"emp-row" + (!isActive(e) ? " inactive" : "") + "\" data-emp=\"" + esc(e.id) + "\" tabindex=\"0\"><td class=\"idtag\">" + esc(e.id) + "</td><td><b>" + esc(empName(e)) + "</b>" +
+        (ended ? " <span class=\"chip\">Ended " + esc(E.fmtDate(pe.end)) + "</span>" : (e.active === false ? " <span class=\"chip\">Inactive</span>" : "")) +
+        (pe.position ? "<br><span class=\"muted\" style=\"font-size:.82rem\">" + esc(pe.position) + "</span>" : "") + "</td>" +
         DAYS.map(function (d) { return "<td class=\"sched-cell\">" + schedCellTxt(e, d) + "</td>"; }).join("") +
         "<td class=\"num\">" + hrs(E.weekSched(e)) + "</td></tr>";
     });
-    el.innerHTML = "<p class=\"muted\" style=\"margin-bottom:8px;font-size:.9rem\">" + plural(list.length, "employee") + ". Click a row to change hours.</p><div class=\"tbl-wrap\"><table><thead><tr><th>ID</th><th>Name</th>" +
+    el.innerHTML = "<p class=\"muted\" style=\"margin-bottom:8px;font-size:.9rem\">" + plural(list.length, "employee") + ". Click a row to change hours or open the profile.</p><div class=\"tbl-wrap\"><table><thead><tr><th>ID</th><th>Name</th>" +
       DAYS.map(function (d) { return "<th>" + d + "</th>"; }).join("") + "<th class=\"num\">Week hrs</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
+  }
+
+  /* ---------------- employee profile ---------------- */
+  var DOC_SLOTS = ["doc1", "doc2", "doc3"];
+  function todayISO() { var t = new Date(); return t.getFullYear() + "-" + String(t.getMonth() + 1).padStart(2, "0") + "-" + String(t.getDate()).padStart(2, "0"); }
+  function isActive(e) { var p = e.profile || {}; return e.active !== false && !(p.end && p.end <= todayISO()); }
+  function maskSSN(s) { var d = String(s || "").replace(/\D/g, ""); return d.length >= 4 ? "•••-••-" + d.slice(-4) : (d ? "•••" : ""); }
+  function fmtSSN(s) { var d = String(s || "").replace(/\D/g, "").slice(0, 9); return d.length > 5 ? d.slice(0, 3) + "-" + d.slice(3, 5) + "-" + d.slice(5) : d.length > 3 ? d.slice(0, 3) + "-" + d.slice(3) : d; }
+  function newKey() { return "k" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function shrinkImage(file, max, quality) {
+    return new Promise(function (res, rej) {
+      var fr = new FileReader();
+      fr.onerror = function () { rej(new Error("Couldn't read that picture.")); };
+      fr.onload = function () {
+        var img = new Image();
+        img.onerror = function () { rej(new Error("That file isn't a picture this browser can open.")); };
+        img.onload = function () {
+          var s = Math.min(1, max / Math.max(img.width, img.height));
+          var c = document.createElement("canvas"); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+          var g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+          res(c.toDataURL("image/jpeg", quality));
+        };
+        img.src = fr.result;
+      };
+      fr.readAsDataURL(file);
+    });
+  }
+  function readAsDataURL(file) { return new Promise(function (res, rej) { var fr = new FileReader(); fr.onload = function () { res(fr.result); }; fr.onerror = rej; fr.readAsDataURL(file); }); }
+  function fileDocPath(e, slot) { return "files/" + (e.profile && e.profile.fk ? e.profile.fk : "none") + "_" + slot; }
+
+  function profileHtml(e) {
+    var p = e.profile || {}, files = p.files || {};
+    function f(id, label, val, type, extra) { return "<label class=\"field\">" + label + "<input type=\"" + (type || "text") + "\" id=\"p-" + id + "\" value=\"" + esc(val || "") + "\"" + (extra || "") + "></label>"; }
+    var docs = DOC_SLOTS.map(function (s, i) {
+      var m = files[s];
+      return "<div class=\"doc-slot\" data-slot=\"" + s + "\"><div class=\"doc-prev\" id=\"prev-" + s + "\">" + (m ? "<span class=\"muted\">Loading…</span>" : "<span class=\"muted\">No file</span>") + "</div>" +
+        "<input type=\"text\" class=\"doc-label\" id=\"lbl-" + s + "\" placeholder=\"e.g. Driver's license\" value=\"" + esc(m ? m.label || "" : "") + "\" aria-label=\"Document " + (i + 1) + " name\">" +
+        "<div class=\"toolbar\"><label class=\"btn small\" for=\"file-" + s + "\">" + (m ? "Replace" : "Add picture or PDF") + "</label><input type=\"file\" id=\"file-" + s + "\" accept=\"image/*,application/pdf\" hidden>" +
+        (m ? "<button type=\"button\" class=\"btn small\" data-viewdoc=\"" + s + "\">Open</button><button type=\"button\" class=\"btn small danger\" data-rmdoc=\"" + s + "\">Remove</button>" : "") + "</div></div>";
+    }).join("");
+    return "<div class=\"prof\">" +
+      "<div class=\"prof-top\"><div class=\"photo-box\"><div class=\"photo\" id=\"prev-photo\">" + (files.photo ? "<span class=\"muted\">Loading…</span>" : "<span class=\"muted\">No photo</span>") + "</div>" +
+      "<div class=\"toolbar\"><label class=\"btn small\" for=\"file-photo\">" + (files.photo ? "Change photo" : "Add photo") + "</label><input type=\"file\" id=\"file-photo\" accept=\"image/*\" capture=\"user\" hidden>" +
+      (files.photo ? "<button type=\"button\" class=\"btn small danger\" data-rmdoc=\"photo\">Remove</button>" : "") + "</div></div>" +
+      "<div class=\"grid4\" style=\"flex:1;margin:0\">" + f("phone1", "Phone 1", p.phone1, "tel") + f("phone2", "Phone 2", p.phone2, "tel") + f("email", "Email", p.email, "email") + f("position", "Position / job title", p.position) + "</div></div>" +
+      "<h4>Address</h4><div class=\"grid4\">" + f("street", "Street", p.street) + f("city", "City", p.city) + f("state", "State", p.state) + f("zip", "ZIP", p.zip, "text", " inputmode=\"numeric\"") + "</div>" +
+      "<h4>Personal</h4><div class=\"grid4\">" + f("dob", "Date of birth", p.dob, "date") +
+      "<label class=\"field\">SSN<span class=\"ssn-wrap\"><input type=\"password\" id=\"p-ssn\" value=\"" + esc(fmtSSN(p.ssn)) + "\" autocomplete=\"off\" inputmode=\"numeric\" placeholder=\"123-45-6789\"><button type=\"button\" class=\"btn small\" id=\"ssnShow\">Show</button></span></label>" +
+      f("ecName", "Emergency contact", p.ecName) + f("ecPhone", "Emergency phone", p.ecPhone, "tel") + f("ecRel", "Relationship", p.ecRel) + "</div>" +
+      "<h4>Pay and dates</h4><div class=\"grid4\">" +
+      "<label class=\"field\">Pay amount<span class=\"ssn-wrap\"><span class=\"muted\">$</span><input type=\"number\" step=\"0.01\" min=\"0\" id=\"p-pay\" value=\"" + esc(p.pay || "") + "\"><select id=\"p-payType\" aria-label=\"Pay period\">" +
+      ["hour", "week", "year"].map(function (t) { return "<option value=\"" + t + "\"" + ((p.payType || "hour") === t ? " selected" : "") + ">per " + t + "</option>"; }).join("") + "</select></span></label>" +
+      f("start", "Start date", p.start, "date") + f("end", "End date", p.end, "date") + "</div>" +
+      "<p class=\"muted\" style=\"font-size:.84rem;margin-top:-4px\">Setting an end date marks the employee as no longer working from that day: off active lists and printed cards. Their history stays.</p>" +
+      "<h4>ID documents <span class=\"muted\" style=\"font-weight:400;font-size:.85rem\">(up to 3)</span></h4><div class=\"docs\">" + docs + "</div>" +
+      "<h4>Notes</h4><textarea id=\"p-notes\" rows=\"3\">" + esc(p.notes || "") + "</textarea>" +
+      "<p class=\"muted\" style=\"font-size:.82rem\">Everything here is encrypted before it leaves this device.</p></div>";
+  }
+  function showFile(slot, f) {
+    var el = $("#prev-" + slot); if (!el) return;
+    if (!f) { el.innerHTML = "<span class=\"muted\">" + (slot === "photo" ? "No photo" : "No file") + "</span>"; return; }
+    if (/^data:image\//.test(f.data)) el.innerHTML = "<img src=\"" + f.data + "\" alt=\"" + (slot === "photo" ? "Employee photo" : esc(f.label || "Document")) + "\">";
+    else el.innerHTML = "<span class=\"pdf-tag\">PDF</span> <span class=\"muted\">" + esc(f.name || "document.pdf") + "</span>";
+  }
+  function loadProfileFiles(e) {
+    var files = (e.profile && e.profile.files) || {};
+    ["photo"].concat(DOC_SLOTS).forEach(function (slot) {
+      if (!files[slot] || !st.db) return;
+      st.db.doc(fileDocPath(e, slot)).get().then(function (snap) {
+        if (!st.edit || st.edit.origId !== e.id) return;
+        var d = snap.exists ? snap.data() : null;
+        st.edit.loaded[slot] = d;
+        if (!(slot in st.edit.files)) showFile(slot, d);
+      }).catch(function () { showFile(slot, null); });
+    });
+  }
+  function pickFile(slot, file) {
+    if (!file) return;
+    var msg = $("#edMsg");
+    var isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+    var p = isPdf ? (file.size > 1500000 ? Promise.reject(new Error("That PDF is over 1.5 MB. Take a picture of the document instead.")) : readAsDataURL(file))
+      : shrinkImage(file, slot === "photo" ? 360 : 1300, slot === "photo" ? 0.8 : 0.68);
+    p.then(function (data) {
+      st.edit.files[slot] = { data: data, name: file.name, type: isPdf ? "application/pdf" : "image/jpeg", added: new Date().toISOString() };
+      showFile(slot, st.edit.files[slot]);
+      msg.className = "msg"; msg.textContent = "Picture ready. Click Save to keep it.";
+    }).catch(function (er) { msg.className = "msg err"; msg.textContent = er.message; });
+  }
+  function readProfile(prev) {
+    function v(id) { var x = $("#p-" + id); return x ? x.value.trim() : ""; }
+    var p = Object.assign({}, prev || {});
+    ["phone1", "phone2", "email", "position", "street", "city", "state", "zip", "dob", "ecName", "ecPhone", "ecRel", "pay", "payType", "start", "end"].forEach(function (k) { p[k] = v(k); });
+    p.ssn = v("ssn").replace(/\D/g, "").slice(0, 9);
+    p.notes = ($("#p-notes") || {}).value || "";
+    p.fk = p.fk || newKey();
+    p.files = Object.assign({}, p.files || {});
+    DOC_SLOTS.forEach(function (s) { if (p.files[s]) p.files[s].label = v("x") || ($("#lbl-" + s) || {}).value || p.files[s].label || ""; });
+    return p;
+  }
+  function saveProfileFiles(e) {
+    var ops = [];
+    Object.keys(st.edit.files).forEach(function (slot) {
+      var f = st.edit.files[slot], path = fileDocPath(e, slot);
+      if (f === null) { delete e.profile.files[slot]; ops.push(st.db.doc(path).delete()); }
+      else {
+        var label = slot === "photo" ? "Photo" : (($("#lbl-" + slot) || {}).value || "").trim();
+        e.profile.files[slot] = { label: label, type: f.type, added: f.added };
+        ops.push(st.db.doc(path).set({ data: f.data, name: f.name, type: f.type, label: label, added: f.added }));
+      }
+    });
+    DOC_SLOTS.forEach(function (s) { if (e.profile.files[s] && !(s in st.edit.files)) e.profile.files[s].label = (($("#lbl-" + s) || {}).value || "").trim(); });
+    return Promise.all(ops);
+  }
+  function openDoc(slot) {
+    var f = (slot in st.edit.files) ? st.edit.files[slot] : st.edit.loaded[slot];
+    if (!f) return;
+    var w = window.open("", "_blank");
+    if (!w) { flashTop("Allow pop-ups for this site to open documents."); return; }
+    var body = /^data:image\//.test(f.data) ? "<img src=\"" + f.data + "\" style=\"max-width:100%\">" : "<iframe src=\"" + f.data + "\" style=\"border:0;width:100%;height:95vh\"></iframe>";
+    w.document.write("<!doctype html><title>" + esc(f.label || f.name || "Document") + "</title><body style=\"margin:0;background:#333;display:grid;place-items:center;min-height:100vh\">" + body + "</body>");
+    w.document.close();
   }
 
   function openEditor(id, preset) {
     var isNew = !id || !st.employees[id];
     var e = !isNew ? JSON.parse(JSON.stringify(st.employees[id])) : Object.assign({ id: "", first: "", last: "", dept: "", active: true, days: {} }, preset || {});
-    st.edit = { origId: isNew ? null : id };
+    st.edit = { origId: isNew ? null : id, files: {}, loaded: {}, profile: e.profile || null };
     var ed = $("#editor");
     var dayRows = DAYS.map(function (d, i) {
       var x = (e.days || {})[d], on = !!x;
@@ -2107,13 +2313,16 @@ var Engine = (function () {
       "<label class=\"field\">Last name<input type=\"text\" id=\"e-last\" value=\"" + esc(e.last) + "\"></label>" +
       "<label class=\"field\">Department<input type=\"text\" id=\"e-dept\" list=\"deptList\" value=\"" + esc(e.dept) + "\"></label></div>" +
       "<label class=\"check\"><input type=\"checkbox\" id=\"e-active\"" + (e.active !== false ? " checked" : "") + "> Active (shows on reports and printed cards)</label>" +
-      "<div class=\"tbl-wrap\" style=\"margin-top:12px\"><table class=\"days-edit\"><thead><tr><th>Day</th><th></th><th>From</th><th>Till</th><th class=\"num\">Hours</th></tr></thead><tbody>" + dayRows +
-      "<tr><td colspan=\"4\"><b>Week total</b> <span class=\"muted\" style=\"font-size:.85rem\">(a Till earlier than From means past midnight)</span></td><td class=\"num\"><b id=\"h-week\"></b></td></tr></tbody></table></div>" +
+      "<div class=\"ed-tabs seg\" role=\"group\" aria-label=\"Sections\"><button type=\"button\" data-edtab=\"sched\" aria-pressed=\"true\">Schedule</button><button type=\"button\" data-edtab=\"prof\" aria-pressed=\"false\">Profile and documents</button></div>" +
+      "<div id=\"edProf\" hidden>" + profileHtml(e) + "</div>" +
+      "<div id=\"edSched\"><div class=\"tbl-wrap\" style=\"margin-top:12px\"><table class=\"days-edit\"><thead><tr><th>Day</th><th></th><th>From</th><th>Till</th><th class=\"num\">Hours</th></tr></thead><tbody>" + dayRows +
+      "<tr><td colspan=\"4\"><b>Week total</b> <span class=\"muted\" style=\"font-size:.85rem\">(a Till earlier than From means past midnight)</span></td><td class=\"num\"><b id=\"h-week\"></b></td></tr></tbody></table></div></div>" +
       "<div class=\"ed-actions\"><button class=\"btn primary\" type=\"submit\">Save</button><button class=\"btn\" type=\"button\" id=\"edCancel\">Cancel</button><span class=\"msg\" id=\"edMsg\"></span><span class=\"grow\"></span>" +
       (isNew ? "" : "<button class=\"btn danger\" type=\"button\" id=\"edDel\">Remove employee</button><span class=\"confirm\" id=\"edConfirm\" hidden>Remove " + esc(empName(e)) + " for good? <button class=\"btn small danger solid\" type=\"button\" id=\"edDelYes\">Yes, remove</button><button class=\"btn small\" type=\"button\" id=\"edDelNo\">Keep</button></span>") +
       "</div></form>";
     ed.hidden = false;
     recalcEditor();
+    if (!isNew) loadProfileFiles(e);
     ed.scrollIntoView({ behavior: "smooth", block: "start" });
     $("#e-" + (isNew && !e.id ? "id" : "first")).focus({ preventScroll: true });
   }
@@ -2147,9 +2356,13 @@ var Engine = (function () {
     if (id !== orig && st.employees[id]) { msg.className = "msg err"; msg.textContent = "ID " + id + " already belongs to " + empName(st.employees[id]) + "."; return; }
     var missing = DAYS.filter(function (d) { return $("#w-" + d).checked && (!$("#f-" + d).value || !$("#t-" + d).value); });
     if (missing.length) { msg.className = "msg err"; msg.textContent = "Add From and Till times for " + missing.join(", ") + ", or untick Works."; return; }
-    var doc = { id: id, first: $("#e-first").value.trim(), last: $("#e-last").value.trim(), dept: $("#e-dept").value.trim(), active: $("#e-active").checked, days: readEditorDays(), updatedAt: new Date().toISOString() };
+    var prof = readProfile(st.edit.profile);
+    if (prof.ssn && prof.ssn.length !== 9) { msg.className = "msg err"; msg.textContent = "The SSN should have 9 digits."; return; }
+    if (prof.end && prof.start && prof.end < prof.start) { msg.className = "msg err"; msg.textContent = "The end date is before the start date."; return; }
+    var doc = { id: id, first: $("#e-first").value.trim(), last: $("#e-last").value.trim(), dept: $("#e-dept").value.trim(), active: $("#e-active").checked, days: readEditorDays(), profile: prof, updatedAt: new Date().toISOString() };
+    if (prof.end && prof.end <= todayISO()) doc.active = false;
     msg.className = "msg"; msg.textContent = "Saving…";
-    st.db.doc("employees/" + id).set(doc).then(function () {
+    saveProfileFiles(doc).then(function () { return st.db.doc("employees/" + id).set(doc); }).then(function () {
       if (orig && orig !== id) return st.db.doc("employees/" + orig).delete();
     }).then(function () {
       closeEditor(); flashTop(empName(doc) + " saved.");
@@ -2158,8 +2371,9 @@ var Engine = (function () {
   function deleteEmp() {
     var orig = st.edit && st.edit.origId;
     if (!orig || !st.db) return;
-    var name = empName(st.employees[orig] || { id: orig });
-    st.db.doc("employees/" + orig).delete().then(function () { closeEditor(); flashTop(name + " removed."); })
+    var name = empName(st.employees[orig] || { id: orig }), emp = st.employees[orig] || {};
+    var fileDels = Object.keys((emp.profile && emp.profile.files) || {}).map(function (slot) { return st.db.doc(fileDocPath(emp, slot)).delete().catch(function () {}); });
+    Promise.all(fileDels).then(function () { return st.db.doc("employees/" + orig).delete(); }).then(function () { closeEditor(); flashTop(name + " removed."); })
       .catch(function (e) { var m = $("#edMsg"); m.className = "msg err"; m.textContent = "Couldn't remove: " + ((e && e.message) || "try again"); });
   }
   function closeEditor() { st.edit = null; $("#editor").hidden = true; $("#editor").innerHTML = ""; }
@@ -2328,7 +2542,7 @@ var Engine = (function () {
   /* ---------------- print ---------------- */
   function printList() {
     var mode = ($("input[name=prMode]:checked") || {}).value || "all";
-    var all = Object.keys(st.employees).map(function (k) { return st.employees[k]; }).filter(function (e) { return e.active !== false; })
+    var all = Object.keys(st.employees).map(function (k) { return st.employees[k]; }).filter(isActive)
       .sort(function (a, b) { return (a.dept || "~").localeCompare(b.dept || "~") || empName(a).localeCompare(empName(b)); });
     if (mode === "dept") { var d = $("#prDept").value; return all.filter(function (e) { return e.dept === d; }); }
     if (mode === "pick") return all.filter(function (e) { return printPick[e.id]; });
@@ -2348,7 +2562,7 @@ var Engine = (function () {
     if (mode === "pick") {
       var q = ($("#prSearch").value || "").toLowerCase();
       $("#prList").innerHTML = Object.keys(st.employees).map(function (k) { return st.employees[k]; })
-        .filter(function (e) { return e.active !== false && (!q || empName(e).toLowerCase().indexOf(q) >= 0 || String(e.id).indexOf(q) >= 0); })
+        .filter(function (e) { return isActive(e) && (!q || empName(e).toLowerCase().indexOf(q) >= 0 || String(e.id).indexOf(q) >= 0); })
         .sort(function (a, b) { return empName(a).localeCompare(empName(b)); })
         .map(function (e) { return "<label class=\"check\"><input type=\"checkbox\" data-pick=\"" + esc(e.id) + "\"" + (printPick[e.id] ? " checked" : "") + "> " + esc(empName(e)) + " <span class=\"idtag\">#" + esc(e.id) + "</span></label>"; }).join("") || "<p class=\"muted\">Nobody matches.</p>";
     }
@@ -2536,6 +2750,20 @@ var Engine = (function () {
       }
     });
     $("#editor").addEventListener("submit", saveEditor);
+    $("#editor").addEventListener("click", function (e) {
+      var t = e.target.closest("[data-edtab]");
+      if (t) { var prof = t.dataset.edtab === "prof"; $("#edProf").hidden = !prof; $("#edSched").hidden = prof; $all("[data-edtab]", $("#editor")).forEach(function (b) { b.setAttribute("aria-pressed", String(b === t)); }); return; }
+      if (e.target.id === "ssnShow") { var x = $("#p-ssn"); var show = x.type === "password"; x.type = show ? "text" : "password"; e.target.textContent = show ? "Hide" : "Show"; return; }
+      var rm = e.target.closest("[data-rmdoc]");
+      if (rm) { st.edit.files[rm.dataset.rmdoc] = null; showFile(rm.dataset.rmdoc, null); var m = $("#edMsg"); m.className = "msg"; m.textContent = "Removed. Click Save to confirm."; return; }
+      var vd = e.target.closest("[data-viewdoc]");
+      if (vd) openDoc(vd.dataset.viewdoc);
+    });
+    $("#editor").addEventListener("change", function (e) {
+      var m = /^file-(photo|doc[123])$/.exec(e.target.id || "");
+      if (m) { pickFile(m[1], e.target.files[0]); e.target.value = ""; }
+    });
+    $("#editor").addEventListener("input", function (e) { if (e.target.id === "p-ssn") { var pos = e.target.value.length; e.target.value = fmtSSN(e.target.value); } });
     $("#editor").addEventListener("click", function (e) {
       var id = e.target.id;
       if (id === "edCancel") closeEditor();
