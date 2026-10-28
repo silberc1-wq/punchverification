@@ -28,6 +28,7 @@
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
+body[data-role="manager"] .owner-only, body[data-role="viewer"] .owner-only, body[data-role="viewer"] .edit-only { display: none !important; }
 body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.45; }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--head); }
 .wrap { max-width: 1180px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
@@ -308,7 +309,7 @@ tr.detail td { background: var(--sunk); padding: 14px 12px 16px; }
 
   <!-- WEEKLY REPORT -->
   <section class="view" id="v-report">
-    <div class="panel upload" id="drop">
+    <div class="panel upload edit-only" id="drop">
       <div>
         <h2>Check a week</h2>
         <p>Drop the week's hours file here, or several weeks at once: your All_Emp workbook (it reads the DEnter tab) or time clock exports, .xlsx or .csv. Each week is checked and saved on its own. The file stays on this computer; only the results are saved.</p>
@@ -331,12 +332,12 @@ tr.detail td { background: var(--sunk); padding: 14px 12px 16px; }
       <select id="empDept" aria-label="Department"></select>
       <label class="check"><input type="checkbox" id="showInactive"> Show inactive</label>
       <span class="grow"></span>
-      <button class="btn" type="button" id="bkSave">Save backup</button>
-      <label class="btn" for="bkLoad">Load backup</label>
+      <button class="btn owner-only" type="button" id="bkSave">Save backup</button>
+      <label class="btn owner-only" for="bkLoad">Load backup</label>
       <input type="file" id="bkLoad" accept=".json" hidden>
-      <label class="btn" for="timeIn">Import from Time tab</label>
+      <label class="btn edit-only" for="timeIn">Import from Time tab</label>
       <input type="file" id="timeIn" accept=".xlsx,.xlsm,.xls" hidden>
-      <button class="btn primary" id="addEmp" type="button">Add employee</button>
+      <button class="btn primary edit-only" id="addEmp" type="button">Add employee</button>
     </div>
     <div id="importBox" class="notice info" hidden></div>
     <div id="editor" class="panel editor" hidden></div>
@@ -409,7 +410,7 @@ tr.detail td { background: var(--sunk); padding: 14px 12px 16px; }
         <div class="checks" id="r-exempt"></div>
         <p class="muted" style="font-size:.86rem">The schedule check (over hours, early, late) still covers everyone.</p>
       </fieldset>
-      <fieldset>
+      <fieldset class="owner-only">
         <legend>Locations</legend>
         <p class="muted" style="font-size:.86rem">Add each store location. Employees belong to one location; each location uploads its own time clock file. With one location, nothing else changes.</p>
         <div id="locList" class="loc-list"></div>
@@ -421,8 +422,8 @@ tr.detail td { background: var(--sunk); padding: 14px 12px 16px; }
         <p class="muted" style="font-size:.86rem">One rule per line.</p>
       </fieldset>
       <div class="toolbar">
-        <button class="btn primary" type="submit" id="rulesSave">Save rules</button>
-        <button class="btn" type="button" id="rulesReset">Reset to defaults</button>
+        <button class="btn primary owner-only" type="submit" id="rulesSave">Save rules</button>
+        <button class="btn owner-only" type="button" id="rulesReset">Reset to defaults</button>
         <span class="msg" id="rulesMsg"></span>
       </div>
     </form>
@@ -927,6 +928,23 @@ var Engine = (function () {
   var te = new TextEncoder(), td = new TextDecoder();
   var server = "", user = "", loginKey = "", DK = null;
   var S = {}, coreVer = 0, reports = {}, reportIds = [], files = {}, fileIds = [], subs = [], saving = Promise.resolve(), pendingSaves = 0;
+  // Roles. SSNs, pay, birth dates, forms etc. live in a separate locked doc ("sec") that the server only gives to owners.
+  var role = "owner", SEC = {}, secVer = 0;
+  var SEC_KEYS = ["ssn", "dob", "gender", "depCount", "dependents", "street", "city", "state", "zip", "pay", "payType", "payHistory", "forms", "payNoticeLang",
+    "workAuthExp", "papers", "papersExp", "warnings", "timeOff", "sickCarry", "vacAllow", "vacCarry", "endReason", "rehire"];
+  function isEmp(p) { var a = p.split("/"); return a.length === 2 && a[0] === "employees"; }
+  function blank(x) {
+    if (x == null || x === "") return true;
+    if (Array.isArray(x)) return !x.length;
+    if (typeof x === "object") return !Object.keys(x).some(function (k) { return !blank(x[k]); });
+    return false;
+  }
+  function splitEmp(v) {
+    if (!v || !v.profile) return [v, null];
+    var c = clone(v), sp = {}, any = false;
+    SEC_KEYS.forEach(function (k) { if (k in c.profile) { var x = c.profile[k]; delete c.profile[k]; if (!blank(x)) { sp[k] = x; any = true; } } });
+    return [c, any ? sp : null];
+  }
   var resolveReady, ready = new Promise(function (r) { resolveReady = r; });
 
   function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } }
@@ -964,7 +982,8 @@ var Engine = (function () {
     self: "You can't remove the login you're signed in with.",
     bad: "Something was missing from the request. Reload the page and try again.",
     expired: "This one-time password has expired. Ask the person who invited you to send a new one.",
-    missing: "That login no longer exists."
+    missing: "That login no longer exists.",
+    forbidden: "Your login doesn't have permission for that. Ask an owner."
   };
   function api(body) {
     return fetch(server, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
@@ -986,9 +1005,14 @@ var Engine = (function () {
   /* ---------- the store the page uses ---------- */
   function isReport(p) { return p.indexOf("reports/") === 0; }
   function isFile(p) { return p.indexOf("files/") === 0; }
+  function merged(p) {
+    var d = clone(S[p]), x = SEC[p.slice(10)];
+    if (d && x) d.profile = Object.assign({}, d.profile || {}, clone(x));
+    return d;
+  }
   function docSnap(p) {
     var src = isReport(p) ? reports : isFile(p) ? files : S, has = Object.prototype.hasOwnProperty.call(src, p);
-    return { id: p.split("/").pop(), exists: has, data: function () { return has ? clone(src[p]) : undefined; }, metadata: { fromCache: false, hasPendingWrites: pendingSaves > 0 } };
+    return { id: p.split("/").pop(), exists: has, data: function () { return !has ? undefined : (src === S && isEmp(p) ? merged(p) : clone(src[p])); }, metadata: { fromCache: false, hasPendingWrites: pendingSaves > 0 } };
   }
   function qs(c) {
     var docs = Object.keys(S).filter(function (k) { var a = k.split("/"); return a.length === 2 && a[0] === c; }).sort().map(docSnap);
@@ -997,7 +1021,35 @@ var Engine = (function () {
   function fire() { subs.forEach(function (s) { try { s.cb(s.kind === "doc" ? docSnap(s.path) : qs(s.path)); } catch (e) { console.error(e); } }); }
   function sub(kind, path, cb) { var s = { kind: kind, path: path, cb: cb }; subs.push(s); setTimeout(function () { cb(kind === "doc" ? docSnap(path) : qs(path)); }, 0); return function () { subs = subs.filter(function (x) { return x !== s; }); }; }
 
-  function applyOp(op) { if (op.del) delete S[op.p]; else S[op.p] = clone(op.v); }
+  function applyOp(op) { if (op.migrate) { moveSecure(); return; } if (op.del) delete S[op.p]; else S[op.p] = clone(op.v); }
+  function applySec(op) {
+    if (op.merge) { Object.keys(op.merge).forEach(function (id) { SEC[id] = Object.assign({}, SEC[id] || {}, op.merge[id]); }); return; }
+    if (op.v) SEC[op.id] = clone(op.v); else delete SEC[op.id];
+  }
+  // older data kept SSNs/pay inside the employee record: move them to the owners-only doc
+  function moveSecure() {
+    var moved = {};
+    Object.keys(S).forEach(function (p) {
+      if (!isEmp(p) || !S[p].profile || !SEC_KEYS.some(function (k) { return k in S[p].profile; })) return;
+      var sp = splitEmp(S[p]); S[p] = sp[0];
+      if (sp[1]) moved[p.slice(10)] = sp[1];
+    });
+    return moved;
+  }
+  function saveSec(op) {
+    pendingSaves++;
+    function attempt(n) {
+      return encStr(DK, JSON.stringify(SEC)).then(function (v) { return authed({ action: "set", key: "sec", v: v, ifVersion: secVer }); }).then(function (j) {
+        if (j.ok) { secVer = j.ver; return; }
+        if (j.error === "conflict" && n < 4) {
+          return decodeCore(j.doc).then(function (latest) { SEC = latest; secVer = j.doc ? j.doc.ver : 0; applySec(op); fire(); return attempt(n + 1); });
+        }
+        throw fail(j);
+      });
+    }
+    saving = saving.catch(function () {}).then(function () { return attempt(0); });
+    return saving.then(function () { pendingSaves--; }, function (e) { pendingSaves--; status(e.message, true); throw e; });
+  }
   function saveCore(op) {
     pendingSaves++;
     function attempt(n) {
@@ -1044,13 +1096,21 @@ var Engine = (function () {
           return encStr(DK, JSON.stringify(v)).then(function (enc) { return authed({ action: "set", key: "r:" + id, v: enc }); })
             .then(function (j) { pendingSaves--; if (!j.ok) throw fail(j); }, function (e) { pendingSaves--; throw e; });
         }
+        if (isEmp(p)) {
+          var sp = splitEmp(v), eop = { p: p, v: sp[0] }, sop = role === "owner" ? { id: p.slice(10), v: sp[1] } : null;
+          applyOp(eop); if (sop) applySec(sop); fire();
+          // the locked part is saved first, so a failure never loses SSNs or pay
+          return (sop ? saveSec(sop) : Promise.resolve()).then(function () { return saveCore(eop); });
+        }
         var op = { p: p, v: v }; applyOp(op); fire(); return saveCore(op);
       },
-      update: function (v) { var cur = isReport(p) ? reports[p] : S[p]; return this.set(Object.assign({}, cur || {}, v)); },
+      update: function (v) { var cur = isReport(p) ? reports[p] : isEmp(p) ? merged(p) : S[p]; return this.set(Object.assign({}, cur || {}, v)); },
       delete: function () {
         if (isFile(p)) { delete files[p]; fileIds = fileIds.filter(function (x) { return x !== p.slice(6); }); return authed({ action: "del", key: "f:" + p.slice(6) }).then(function () {}); }
         if (isReport(p)) { delete reports[p]; reportIds = reportIds.filter(function (x) { return x !== p.slice(8); }); return authed({ action: "del", key: "r:" + p.slice(8) }).then(function () {}); }
-        var op = { p: p, del: true }; applyOp(op); fire(); return saveCore(op);
+        var op = { p: p, del: true }; applyOp(op);
+        if (isEmp(p) && role === "owner" && SEC[p.slice(10)]) { var dop = { id: p.slice(10), v: null }; applySec(dop); fire(); return saveCore(op).then(function () { return saveSec(dop); }); }
+        fire(); return saveCore(op);
       },
       onSnapshot: function (cb) { return sub("doc", p, cb); }
     };
@@ -1091,9 +1151,11 @@ var Engine = (function () {
       if (!j.ok) throw fail(j);
       reportIds = j.reports || [];
       fileIds = j.files || Object.keys(j.docs || {}).filter(function (k) { return k.indexOf("f:") === 0; }).map(function (k) { return k.slice(2); });
-      var core = j.docs && j.docs.core;
-      coreVer = core ? core.ver : 0;
-      return decodeCore(core).then(function (s) { S = s; return j; });
+      role = j.role || "owner"; window.punchRole = role;
+      if (document.body) document.body.setAttribute("data-role", role);
+      var core = j.docs && j.docs.core, sec = j.docs && j.docs.sec;
+      coreVer = core ? core.ver : 0; secVer = sec ? sec.ver : 0;
+      return Promise.all([decodeCore(core), decodeCore(sec)]).then(function (r) { S = r[0]; SEC = role === "owner" ? r[1] : {}; return j; });
     });
   }
   function poll() {
@@ -1102,6 +1164,13 @@ var Engine = (function () {
       if (j.ok && j.ver !== coreVer && !pendingSaves) {
         return authed({ action: "get", key: "core" }).then(function (g) {
           if (g.ok && g.doc && !pendingSaves) return decodeCore(g.doc).then(function (s) { S = s; coreVer = g.doc.ver; fire(); status("Updated with changes from another device."); });
+        });
+      }
+    }).catch(function () {});
+    if (role === "owner") authed({ action: "ver", key: "sec" }).then(function (j) {
+      if (j.ok && j.ver !== secVer && !pendingSaves) {
+        return authed({ action: "get", key: "sec" }).then(function (g) {
+          if (g.ok && g.doc && !pendingSaves) return decodeCore(g.doc).then(function (s) { SEC = s; secVer = g.doc.ver; fire(); });
         });
       }
     }).catch(function () {});
@@ -1178,6 +1247,12 @@ var Engine = (function () {
       ss(K_SESS, JSON.stringify({ server: server, user: user, loginKey: loginKey, dk: b64(raw) }));
       return loadAll();
     }).then(function () { return pwForMigration != null ? migrateLocal(pwForMigration) : null; }).then(function () {
+      if (role !== "owner") return;
+      var moved = moveSecure();
+      if (!Object.keys(moved).length) return;
+      var mop = { merge: moved }; applySec(mop);
+      return saveSec(mop).then(function () { return saveCore({ migrate: true }); }).catch(function () {});
+    }).then(function () {
       var ov = document.getElementById("lock"); if (ov) { ov.hidden = true; ov.innerHTML = ""; }
       window.punchUser = user;
       addBar(); addLoginsUI();
@@ -1205,10 +1280,14 @@ var Engine = (function () {
     });
   }
   function uploadAll(all) {
-    var core = {}, reps = {}, fls = {};
-    Object.keys(all).forEach(function (k) { if (isReport(k)) reps[k] = all[k]; else if (isFile(k)) fls[k] = all[k]; else core[k] = all[k]; });
+    var core = {}, reps = {}, fls = {}, sec = {};
+    Object.keys(all).forEach(function (k) {
+      if (isReport(k)) reps[k] = all[k]; else if (isFile(k)) fls[k] = all[k];
+      else if (isEmp(k)) { var sp = splitEmp(all[k]); core[k] = sp[0]; if (sp[1]) sec[k.slice(10)] = sp[1]; }
+      else core[k] = all[k];
+    });
     var docs = {};
-    return encStr(DK, JSON.stringify(core)).then(function (v) {
+    return encStr(DK, JSON.stringify(sec)).then(function (sv) { if (Object.keys(sec).length) docs.sec = sv; return encStr(DK, JSON.stringify(core)); }).then(function (v) {
       docs.core = v;
       return Promise.all(Object.keys(reps).map(function (k) { return encStr(DK, JSON.stringify(reps[k])).then(function (v2) { docs["r:" + k.slice(8)] = v2; }); })
         .concat(Object.keys(fls).map(function (k) { return encStr(DK, JSON.stringify(fls[k])).then(function (v3) { docs["f:" + k.slice(6)] = v3; }); })));
@@ -1344,13 +1423,15 @@ var Engine = (function () {
   function addLoginsUI() {
     if (document.getElementById("loginsBox")) return;
     var form = document.getElementById("rulesForm"); if (!form) return;
-    var box = el("<section class=\"rules-form logins\" id=\"loginsBox\" style=\"margin-top:28px\"><fieldset><legend>Logins</legend>" +
-      "<p class=\"muted\" style=\"font-size:.88rem\">Everyone with a login sees the same schedules and weeks. New logins get a one-time password by email and must choose their own password when they first sign in.</p>" +
+    var box = el("<section class=\"rules-form logins\" id=\"loginsBox\" style=\"margin-top:28px\">" + (role !== "owner" ? "<p class=\"muted\">Signed in as <b>" + esc(user) + "</b> · " + ROLE_NAME[role] + ". " + ROLE_HELP[role] + "</p>" : "<fieldset><legend>Logins</legend>" +
+      "<p class=\"muted\" style=\"font-size:.88rem\">New logins get a one-time password by email and choose their own password when they first sign in. " +
+      "<b>Owner</b>: " + ROLE_HELP.owner + " <b>Manager</b>: " + ROLE_HELP.manager + " <b>Viewer</b>: " + ROLE_HELP.viewer + "</p>" +
       "<ul id=\"lgList\"><li class=\"muted\">Loading…</li></ul>" +
       "<form id=\"lgAdd\" class=\"grid3\" novalidate><label class=\"field\">New username<input type=\"text\" id=\"lgUser\" autocomplete=\"off\"></label>" +
       "<label class=\"field\">Their email<input type=\"email\" id=\"lgEmail\" autocomplete=\"off\" placeholder=\"name@example.com\"></label>" +
+      "<label class=\"field\">Role<select id=\"lgRole\"><option value=\"manager\">Manager</option><option value=\"viewer\">Viewer</option><option value=\"owner\">Owner</option></select></label>" +
       "<div class=\"toolbar\" style=\"grid-column:1/-1\"><button class=\"btn\" type=\"submit\">Send invite</button><span class=\"msg\" id=\"lgMsg\"></span></div></form>" +
-      "<div id=\"inviteBox\" class=\"notice info\" hidden></div></fieldset>" +
+      "<div id=\"inviteBox\" class=\"notice info\" hidden></div></fieldset>") +
       "<fieldset><legend>Change my password</legend><form id=\"lgPwForm\" class=\"grid3\" novalidate>" +
       "<label class=\"field\">New password<input type=\"password\" id=\"cpPw\" autocomplete=\"new-password\"></label>" +
       "<label class=\"field\">New password again<input type=\"password\" id=\"cpPw2\" autocomplete=\"new-password\"></label>" +
@@ -1359,15 +1440,23 @@ var Engine = (function () {
       [[40, "40 seconds"], [120, "2 minutes"], [300, "5 minutes"], [900, "15 minutes"], [0, "never (not recommended)"]].map(function (o) { return "<option value=\"" + o[0] + "\"" + (lockSecs() === o[0] ? " selected" : "") + ">" + o[1] + "</option>"; }).join("") +
       "</select> with no activity. <span class=\"msg\" id=\"alMsg\"></span></p><p class=\"muted\" style=\"font-size:.86rem\">This setting is for this device only. Unsaved changes are lost when it locks, so save as you go.</p></fieldset></section>");
     form.parentNode.insertBefore(box, form.nextSibling);
-    refreshLogins();
+    if (role === "owner") refreshLogins();
   }
+  var ROLE_NAME = { owner: "Owner", manager: "Manager", viewer: "Viewer" };
+  var ROLE_HELP = {
+    owner: "everything, including SSNs, pay, documents, rules and logins.",
+    manager: "weekly reports, schedules, punch edits and printing. No SSNs, pay or documents; can't change rules or logins.",
+    viewer: "can look at reports and schedules and print them. Can't change anything."
+  };
   function refreshLogins() {
     authed({ action: "users" }).then(function (j) {
       var list = document.getElementById("lgList"); if (!list || !j.ok) return;
       list.innerHTML = j.users.map(function (u) {
         var me = u.name.toLowerCase() === user.toLowerCase();
         var expired = u.pending && Date.now() - Date.parse(u.created) > 72 * 3600 * 1000;
-        return "<li><b>" + esc(u.name) + "</b>" + (me ? " <span class=\"chip blue\">You</span>" : "") +
+        var r = u.role || "owner";
+        return "<li><b>" + esc(u.name) + "</b>" + (me ? " <span class=\"chip blue\">You · " + ROLE_NAME[r] + "</span>" :
+          " <select data-role-for=\"" + esc(u.name) + "\" aria-label=\"Role for " + esc(u.name) + "\">" + ["owner", "manager", "viewer"].map(function (x) { return "<option value=\"" + x + "\"" + (x === r ? " selected" : "") + ">" + ROLE_NAME[x] + "</option>"; }).join("") + "</select>") +
           (u.pending ? " <span class=\"chip " + (expired ? "red" : "amber") + "\">" + (expired ? "Invite expired" : "Invite pending") + "</span>" : "") +
           (u.email ? " <span class=\"muted\" style=\"font-size:.85rem\">" + esc(u.email) + "</span>" : "") +
           "<span class=\"muted\" style=\"font-size:.85rem;margin-left:auto\">" + (u.pending ? "invited " : "added ") + esc(new Date(u.created).toLocaleDateString()) + "</span>" +
@@ -1385,7 +1474,7 @@ var Engine = (function () {
       if (!/^[A-Za-z0-9 ._@-]{2,60}$/.test(n)) return msg("lgMsg", "Enter a username (letters and numbers).", true);
       if (em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) return msg("lgMsg", "That email address doesn't look right.", true);
       msg("lgMsg", "Creating login…");
-      invite(n, em, false).then(function () { f.reset(); }).catch(function (er) { msg("lgMsg", er.message, true); });
+      invite(n, em, false, (document.getElementById("lgRole") || {}).value || "manager").then(function () { f.reset(); }).catch(function (er) { msg("lgMsg", er.message, true); });
     }
     if (f && f.id === "lgPwForm") {
       e.preventDefault();
@@ -1405,6 +1494,15 @@ var Engine = (function () {
     }
   });
   document.addEventListener("change", function (e) {
+    var rs = e.target && e.target.closest && e.target.closest("[data-role-for]");
+    if (rs) {
+      rs.disabled = true;
+      authed({ action: "setRole", name: rs.dataset.roleFor, role: rs.value }).then(function (j) {
+        if (!j.ok) throw fail(j);
+        msg("lgMsg", rs.dataset.roleFor + " is now " + ROLE_NAME[rs.value] + ". It applies the next time they sign in."); refreshLogins();
+      }).catch(function (er) { msg("lgMsg", er.message, true); refreshLogins(); });
+      return;
+    }
     if (e.target && e.target.id === "alSel") { ls(K_LOCK, e.target.value); var m = document.getElementById("alMsg"); m.className = "msg ok"; m.textContent = "Saved for this device."; }
   });
   function tempPassword() {
@@ -1413,11 +1511,11 @@ var Engine = (function () {
     return o.slice(0, 5) + "-" + o.slice(5);
   }
   function inviteBox(html) { var b = document.getElementById("inviteBox"); if (b) { b.hidden = false; b.innerHTML = html; } }
-  function invite(name, email, isReset) {
+  function invite(name, email, isReset, newRole) {
     var temp = tempPassword(), salt = newSalt(), keys;
     return deriveAll(name, temp, salt).then(function (k) { keys = k; return wrapDK(k.kek); }).then(function (w) {
       var body = { name: name, salt: salt, newLoginKey: keys.loginKey, wrappedKey: w, email: email };
-      return authed(isReset ? Object.assign({ action: "resetUser" }, body) : Object.assign({ action: "addUser", mustChange: true }, body));
+      return authed(isReset ? Object.assign({ action: "resetUser" }, body) : Object.assign({ action: "addUser", mustChange: true, role: newRole || "manager" }, body));
     }).then(function (j) {
       if (!j.ok) throw j.error === "exists" ? { message: "That username is taken." } : fail(j);
       refreshLogins();
@@ -1478,7 +1576,7 @@ var Engine = (function () {
       if (pw1 !== pw2) { alertBox("The two backup passwords don't match."); return; }
       box("<span>Collecting saved weeks and documents from n8n…</span>");
       Promise.all(reportIds.map(function (rid) { return dref("reports/" + rid).get(); }).concat(fileIds.map(function (fid) { return dref("files/" + fid).get(); }))).then(function () {
-        var all = clone(S); Object.keys(reports).forEach(function (k) { all[k] = reports[k]; }); Object.keys(files).forEach(function (k) { all[k] = files[k]; });
+        var all = {}; Object.keys(S).forEach(function (k) { all[k] = isEmp(k) ? merged(k) : clone(S[k]); }); Object.keys(reports).forEach(function (k) { all[k] = reports[k]; }); Object.keys(files).forEach(function (k) { all[k] = files[k]; });
         var salt = newSalt();
         return backupKey(pw1, salt).then(function (k) { return encStr(k, JSON.stringify(all)); }).then(function (enc) {
           var d = new Date(), stamp = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
@@ -1729,7 +1827,7 @@ var Engine = (function () {
   function hoursMap(r) { var h = {}; (r.people || []).forEach(function (p) { h[p.id] = p.workedWeek; }); return h; }
   /* older saved weeks don't list hours per person (needed for sick leave): fill them in once, quietly */
   function backfillHours() {
-    if (!st.db || backfillHours.running) return;
+    if (!st.db || backfillHours.running || myRole() === "viewer") return;
     var yr = String(new Date().getFullYear() - 1);
     var todo = st.index.filter(function (i) { return !i.hours && String(i.weekStart) >= yr; });
     if (!todo.length) return;
@@ -1919,7 +2017,7 @@ var Engine = (function () {
       notes += "<div class=\"notice info\"><span><b>Not on the schedule:</b> " + r.notInSchedule.map(function (p) {
         return esc(p.name) + " <span class=\"idtag\">#" + esc(p.id) + "</span>";
       }).join(", ") + ". Their schedule wasn't checked.</span>" + r.notInSchedule.map(function (p) {
-        return "<button class=\"btn small\" type=\"button\" data-addemp=\"" + esc(p.id) + "\">Add " + esc(p.name.split(" ")[0]) + "</button>";
+        return "<button class=\"btn small edit-only\" type=\"button\" data-addemp=\"" + esc(p.id) + "\">Add " + esc(p.name.split(" ")[0]) + "</button>";
       }).join("") + "</div>";
     }
     var ex = (r.settings && r.settings.exempt) || [];
@@ -2129,7 +2227,7 @@ var Engine = (function () {
         editLine = "<div class=\"it-ed\"><b>Edited:</b> " + esc(punchTxt(d.orig || last.from)) + " → " + esc(punchTxt(d.punches)) +
           (last.by ? " · by " + esc(last.by) : "") + " · " + esc(new Date(last.at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })) + (last.note ? " · " + esc(last.note) : "") + "</div>";
       }
-      out += "<div class=\"day\"><div class=\"dl\">" + DAYS[E.weekday(d.date)] + "<span>" + dd[0] + "/" + dd[1] + "</span><br><button type=\"button\" class=\"btn small ed-btn\" data-editday=\"" + esc(key) + "\">Edit times</button></div>" + track + "<div class=\"dt\">" + txt + "</div>" +
+      out += "<div class=\"day\"><div class=\"dl\">" + DAYS[E.weekday(d.date)] + "<span>" + dd[0] + "/" + dd[1] + "</span><br><button type=\"button\" class=\"btn small ed-btn edit-only\" data-editday=\"" + esc(key) + "\">Edit times</button></div>" + track + "<div class=\"dt\">" + txt + "</div>" +
         "<div class=\"issues\">" + (tags.length ? "<div class=\"chips\" style=\"margin-bottom:2px\">" + tags.join("") + "</div>" : "") + editLine +
         d.issues.map(function (i) { return "<div class=\"it\"><b>" + esc(i.label) + ":</b> " + esc(i.detail) + "</div>"; }).join("") + "</div>" +
         (st.editDay === key ? dayEditorHtml(d) : "") + "</div>";
@@ -2478,6 +2576,8 @@ var Engine = (function () {
 
   /* ---------------- employee profile ---------------- */
   var DOC_SLOTS = ["doc1", "doc2", "doc3", "doc4", "doc5", "doc6", "doc7", "doc8"];
+  function myRole() { return window.punchRole || "owner"; }
+  function isOwner() { return myRole() === "owner"; }
   function todayISO() { var t = new Date(); return t.getFullYear() + "-" + String(t.getMonth() + 1).padStart(2, "0") + "-" + String(t.getDate()).padStart(2, "0"); }
   function isActive(e) { var p = e.profile || {}; return e.active !== false && !(p.end && p.end <= todayISO()); }
   function maskSSN(s) { var d = String(s || "").replace(/\D/g, ""); return d.length >= 4 ? "•••-••-" + d.slice(-4) : (d ? "•••" : ""); }
@@ -2598,7 +2698,7 @@ var Engine = (function () {
     var p = e.profile || {}, files = p.files || {};
     function f(id, label, val, type, extra) { return "<label class=\"field\">" + label + "<input type=\"" + (type || "text") + "\" id=\"p-" + id + "\" value=\"" + esc(val == null ? "" : val) + "\"" + (extra || "") + "></label>"; }
     function sel(id, label, val, opts) { return "<label class=\"field\">" + label + "<select id=\"p-" + id + "\">" + opts.map(function (o) { return "<option value=\"" + esc(o[0]) + "\"" + (String(val || "") === o[0] ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") + "</select></label>"; }
-    var age = ageOn(p.dob);
+    var age = ageOn(p.dob), O = isOwner(); // managers never receive SSN, pay, forms or documents, so those sections aren't drawn for them
     var docs = DOC_SLOTS.map(function (s, i) {
       var m = files[s];
       return "<div class=\"doc-slot\" data-slot=\"" + s + "\"" + (m ? "" : " hidden") + "><div class=\"doc-prev\" id=\"prev-" + s + "\">" + (m ? "<span class=\"muted\">Loading…</span>" : "<span class=\"muted\">No file</span>") + "</div>" +
@@ -2615,14 +2715,14 @@ var Engine = (function () {
       "<div class=\"grid4\" style=\"flex:1;margin:0\">" + f("prefName", "Preferred name", p.prefName) + f("phone1", "Phone 1", p.phone1, "tel") + f("phone2", "Phone 2", p.phone2, "tel") + f("email", "Email", p.email, "email") +
       f("position", "Position / job title", p.position) + f("language", "Primary language", p.language, "text", " list=\"langList\"") + "</div></div>" +
 
-      "<h4>Address</h4><div class=\"grid4 addr-grid\"><label class=\"field addr-street\">Street<input type=\"text\" id=\"p-street\" value=\"" + esc(p.street || "") + "\" autocomplete=\"off\" placeholder=\"Start typing, pick from the list\"><div class=\"addr-pop\" id=\"addrPop\" hidden></div></label>" +
-      f("city", "City", p.city, "text", " list=\"cityList\"") + f("state", "State", p.state, "text", " maxlength=\"20\"") + f("zip", "ZIP", p.zip, "text", " inputmode=\"numeric\" maxlength=\"10\"") + "</div>" +
+      (!O ? "" : "<h4>Address</h4><div class=\"grid4 addr-grid\"><label class=\"field addr-street\">Street<input type=\"text\" id=\"p-street\" value=\"" + esc(p.street || "") + "\" autocomplete=\"off\" placeholder=\"Start typing, pick from the list\"><div class=\"addr-pop\" id=\"addrPop\" hidden></div></label>" +
+      f("city", "City", p.city, "text", " list=\"cityList\"") + f("state", "State", p.state, "text", " maxlength=\"20\"") + f("zip", "ZIP", p.zip, "text", " inputmode=\"numeric\" maxlength=\"10\"") + "</div>") +
 
-      "<h4>Personal</h4><div class=\"grid4\">" + "<label class=\"field\">Date of birth <span id=\"minorChip\">" + (age != null && age < 18 ? "<span class=\"chip amber\">Minor · age " + age + "</span>" : "") + "</span><input type=\"date\" id=\"p-dob\" value=\"" + esc(p.dob || "") + "\"></label>" +
+      "<h4>Personal</h4>" + (!O ? "" : "<div class=\"grid4\">" + "<label class=\"field\">Date of birth <span id=\"minorChip\">" + (age != null && age < 18 ? "<span class=\"chip amber\">Minor · age " + age + "</span>" : "") + "</span><input type=\"date\" id=\"p-dob\" value=\"" + esc(p.dob || "") + "\"></label>" +
       "<label class=\"field\">SSN<span class=\"ssn-wrap\"><input type=\"password\" id=\"p-ssn\" value=\"" + esc(fmtSSN(p.ssn)) + "\" autocomplete=\"off\" inputmode=\"numeric\" placeholder=\"123-45-6789\"><button type=\"button\" class=\"btn small\" id=\"ssnShow\">Show</button></span></label>" +
-      f("ecName", "Emergency contact", p.ecName) + f("ecPhone", "Emergency phone", p.ecPhone, "tel") + f("ecRel", "Relationship", p.ecRel) +
       sel("gender", "Male / female", p.gender, [["", "—"], ["M", "Male"], ["F", "Female"]]) +
-      f("depCount", "Number of dependents", p.depCount != null && p.depCount !== "" ? p.depCount : ((p.dependents || []).length || ""), "number", " min=\"0\" max=\"30\" step=\"1\" inputmode=\"numeric\"") +
+      f("depCount", "Number of dependents", p.depCount != null && p.depCount !== "" ? p.depCount : ((p.dependents || []).length || ""), "number", " min=\"0\" max=\"30\" step=\"1\" inputmode=\"numeric\"") + "</div>") +
+      "<div class=\"grid4\">" + f("ecName", "Emergency contact", p.ecName) + f("ecPhone", "Emergency phone", p.ecPhone, "tel") + f("ecRel", "Relationship", p.ecRel) +
       f("uniform", "Uniform size", p.uniform) + "</div>" +
 
       "<h4>Job</h4><div class=\"grid4\">" +
@@ -2630,11 +2730,11 @@ var Engine = (function () {
       sel("payClass", "Overtime", p.payClass || "hourly", [["hourly", "Hourly – gets overtime"], ["exempt", "Salaried – exempt, no overtime"]]) +
       f("supervisor", "Supervisor", p.supervisor) + f("availability", "Availability", p.availability, "text", " placeholder=\"e.g. No Fridays after 2\"") +
       f("start", "Start date", p.start, "date") + f("end", "End date", p.end, "date") +
-      sel("endReason", "End reason", p.endReason, [["", "—"], ["Quit", "Quit"], ["Let go", "Let go / fired"], ["Laid off", "Laid off"], ["Seasonal end", "Season ended"], ["Other", "Other"]]) +
-      sel("rehire", "Eligible for rehire", p.rehire, [["", "—"], ["yes", "Yes"], ["no", "No"], ["maybe", "Ask manager"]]) + "</div>" +
+      (!O ? "" : sel("endReason", "End reason", p.endReason, [["", "—"], ["Quit", "Quit"], ["Let go", "Let go / fired"], ["Laid off", "Laid off"], ["Seasonal end", "Season ended"], ["Other", "Other"]]) +
+      sel("rehire", "Eligible for rehire", p.rehire, [["", "—"], ["yes", "Yes"], ["no", "No"], ["maybe", "Ask manager"]])) + "</div>" +
       "<p class=\"muted\" style=\"font-size:.84rem;margin-top:-4px\">Setting an end date marks the employee as no longer working from that day: off active lists and printed cards. Their history stays.</p>" +
 
-      "<h4>Pay</h4><div class=\"grid4\">" +
+      (!O ? "" : "<h4>Pay</h4><div class=\"grid4\">" +
       "<label class=\"field\">Starting pay<span class=\"ssn-wrap\"><span class=\"muted\">$</span><input type=\"number\" step=\"0.01\" min=\"0\" id=\"p-pay\" value=\"" + esc(p.pay || "") + "\"><select id=\"p-payType\" aria-label=\"Pay period\">" +
       ["hour", "week", "year"].map(function (t) { return "<option value=\"" + t + "\"" + ((p.payType || "hour") === t ? " selected" : "") + ">per " + t + "</option>"; }).join("") + "</select></span></label>" +
       "<div class=\"field cur\"><span>Current pay</span><b id=\"curPay\" style=\"padding-top:6px;font-size:1.1rem\">" + curPayTxt(e) + "</b></div></div>" +
@@ -2654,7 +2754,7 @@ var Engine = (function () {
 
 
       "<h4>Documents</h4><div class=\"docs\" id=\"docsBox\">" + docs + "</div>" +
-      "<div class=\"toolbar\"><button type=\"button\" class=\"btn small\" id=\"docAdd\"" + (DOC_SLOTS.every(function (s) { return files[s]; }) ? " hidden" : "") + ">+ Add document</button><span class=\"muted\" style=\"font-size:.84rem\">ID, I-9, W-4, pay notice, working papers, signed write-ups… (up to " + DOC_SLOTS.length + ")</span></div>" +
+      "<div class=\"toolbar\"><button type=\"button\" class=\"btn small\" id=\"docAdd\"" + (DOC_SLOTS.every(function (s) { return files[s]; }) ? " hidden" : "") + ">+ Add document</button><span class=\"muted\" style=\"font-size:.84rem\">ID, I-9, W-4, pay notice, working papers, signed write-ups… (up to " + DOC_SLOTS.length + ")</span></div>") +
       "<h4>Notes</h4><textarea id=\"p-notes\" rows=\"3\">" + esc(p.notes || "") + "</textarea>" +
       "<p class=\"muted\" style=\"font-size:.82rem\">Everything here is encrypted before it leaves this device. Address suggestions look up only the street you type (not the name or anything else).</p></div>";
   }
@@ -2671,7 +2771,7 @@ var Engine = (function () {
   function loadProfileFiles(e) {
     var files = (e.profile && e.profile.files) || {};
     ["photo"].concat(DOC_SLOTS).forEach(function (slot) {
-      if (!files[slot] || !st.db) return;
+      if (!files[slot] || !st.db || (slot !== "photo" && !isOwner())) return;
       st.db.doc(fileDocPath(e, slot)).get().then(function (snap) {
         if (!st.edit || st.edit.origId !== e.id) return;
         var d = snap.exists ? snap.data() : null;
@@ -2693,8 +2793,8 @@ var Engine = (function () {
     }).catch(function (er) { msg.className = "msg err"; msg.textContent = er.message; });
   }
   function readProfile(prev) {
-    function v(id) { var x = $("#p-" + id); return x ? x.value.trim() : ""; }
     var p = Object.assign({}, prev || {});
+    function v(id) { var x = $("#p-" + id); return x ? x.value.trim() : (p[id] == null ? "" : p[id]); }
     ["prefName", "phone1", "phone2", "email", "position", "language", "street", "city", "state", "zip", "dob", "ecName", "ecPhone", "ecRel", "gender", "depCount", "uniform",
       "empType", "payClass", "supervisor", "availability", "pay", "payType", "start", "end", "endReason", "rehire", "payNoticeLang", "workAuthExp", "papers", "papersExp",
       "sickCarry", "vacAllow", "vacCarry"].forEach(function (k) { p[k] = v(k); });
@@ -2735,6 +2835,7 @@ var Engine = (function () {
   }
 
   function openEditor(id, preset) {
+    if (myRole() === "viewer") return;
     var isNew = !id || !st.employees[id];
     var e = !isNew ? JSON.parse(JSON.stringify(st.employees[id])) : Object.assign({ id: "", first: "", last: "", dept: "", active: true, days: {} }, preset || {});
     st.edit = { origId: isNew ? null : id, files: {}, loaded: {}, profile: e.profile || null };
@@ -2760,7 +2861,7 @@ var Engine = (function () {
       "<div id=\"edSched\"><div class=\"tbl-wrap\" style=\"margin-top:12px\"><table class=\"days-edit\"><thead><tr><th>Day</th><th></th><th>From</th><th>Till</th><th class=\"num\">Hours</th></tr></thead><tbody>" + dayRows +
       "<tr><td colspan=\"4\"><b>Week total</b> <span class=\"muted\" style=\"font-size:.85rem\">(a Till earlier than From means past midnight)</span></td><td class=\"num\"><b id=\"h-week\"></b></td></tr></tbody></table></div></div>" +
       "<div class=\"ed-actions\"><button class=\"btn primary\" type=\"submit\">Save</button><button class=\"btn\" type=\"button\" id=\"edCancel\">Cancel</button><span class=\"msg\" id=\"edMsg\"></span><span class=\"grow\"></span>" +
-      (isNew ? "" : "<button class=\"btn danger\" type=\"button\" id=\"edDel\">Remove employee</button><span class=\"confirm\" id=\"edConfirm\" hidden>Remove " + esc(empName(e)) + " for good? <button class=\"btn small danger solid\" type=\"button\" id=\"edDelYes\">Yes, remove</button><button class=\"btn small\" type=\"button\" id=\"edDelNo\">Keep</button></span>") +
+      (isNew ? "" : "<button class=\"btn danger owner-only\" type=\"button\" id=\"edDel\">Remove employee</button><span class=\"confirm\" id=\"edConfirm\" hidden>Remove " + esc(empName(e)) + " for good? <button class=\"btn small danger solid\" type=\"button\" id=\"edDelYes\">Yes, remove</button><button class=\"btn small\" type=\"button\" id=\"edDelNo\">Keep</button></span>") +
       "</div></form>";
     ed.hidden = false;
     recalcEditor();
@@ -2905,7 +3006,7 @@ var Engine = (function () {
   }
   function renderReminders() {
     var el = $("#remPanel"); if (!el) return;
-    if (st.dbState === "none" || !st.empLoaded) { el.hidden = true; return; }
+    if (st.dbState === "none" || !st.empLoaded || !isOwner()) { el.hidden = true; return; }
     var R = reminderList();
     if (!R.items.length && !R.missing.length) { el.hidden = true; return; }
     el.hidden = false;
@@ -2945,10 +3046,10 @@ var Engine = (function () {
         "<td><b>" + esc(excWhoName(x)) + "</b></td>" +
         "<td><div class=\"exc-days\">" + keys.map(function (k) { return "<span class=\"chip " + (x.days[k].mode === "off" ? "amber" : "blue") + "\">" + esc(excDayTxt(k, x.days[k], x.who)) + "</span>"; }).join("") + "</div></td>" +
         "<td>" + esc(x.note || "") + "</td>" +
-        "<td><button class=\"btn small\" type=\"button\" data-excedit=\"" + esc(x.id) + "\">Edit</button></td></tr>";
+        "<td><button class=\"btn small edit-only\" type=\"button\" data-excedit=\"" + esc(x.id) + "\">Edit</button></td></tr>";
     }).join("");
     el.innerHTML = "<div class=\"toolbar\"><div><h3>Exceptions</h3><p class=\"muted\" style=\"font-size:.88rem\">Approved hour changes for one person, or special store hours for a holiday. The report uses these instead of the regular schedule on those dates.</p></div><span class=\"grow\"></span>" +
-      "<button class=\"btn\" type=\"button\" id=\"excAdd\">Add exception</button></div>" +
+      "<button class=\"btn edit-only\" type=\"button\" id=\"excAdd\">Add exception</button></div>" +
       (rows ? "<div class=\"tbl-wrap exc-list\" style=\"margin-top:12px\"><table><thead><tr><th>Dates</th><th>Who</th><th>Changed days</th><th>Reason</th><th></th></tr></thead><tbody>" + rows + "</tbody></table></div>"
         : "<p class=\"muted\" style=\"margin-top:10px\">No exceptions yet.</p>") +
       (older ? "<p style=\"margin-top:8px\"><button class=\"btn small\" type=\"button\" id=\"excOld\">Show all " + all.length + "</button></p>" : "") +
@@ -3134,6 +3235,10 @@ var Engine = (function () {
   /* ---------------- locations ---------------- */
   function renderLocList() {
     var el = $("#locList"); if (!el) return;
+    // only redraw when the list really changed, so typing a new name or a "Click again" isn't wiped by background saves
+    var key = JSON.stringify(st.locations.map(function (l) { return [l.id, l.name, Object.keys(st.employees).filter(function (k) { return empLoc(st.employees[k]) === l.id; }).length]; }));
+    if (el.dataset.key === key) return;
+    el.dataset.key = key;
     el.innerHTML = st.locations.map(function (l, i) {
       var n = Object.keys(st.employees).filter(function (k) { return empLoc(st.employees[k]) === l.id; }).length;
       return "<div class=\"loc-row\"><input type=\"text\" value=\"" + esc(l.name) + "\" data-locname=\"" + esc(l.id) + "\" aria-label=\"Location name\"><span class=\"muted\" style=\"font-size:.85rem\">" + plural(n, "employee") + (i === 0 ? " · first location" : "") + "</span>" +
@@ -3163,6 +3268,7 @@ var Engine = (function () {
     }).join("") || "<p class=\"muted\">Departments appear here once schedules are loaded.</p>";
     $("#r-handout").value = (S.handoutRules || DEFAULT_RULES).join("\n");
     $("#rulesSave").disabled = !st.db;
+    $all("#rulesForm input, #rulesForm select, #rulesForm textarea").forEach(function (x) { if (!x.closest(".owner-only")) x.disabled = !isOwner(); });
   }
   function saveRules(ev) {
     ev.preventDefault();
