@@ -1037,7 +1037,7 @@ var Engine = (function () {
     return moved;
   }
   function saveSec(op) {
-    pendingSaves++;
+    pendingSaves++; saveSeq++;
     function attempt(n) {
       return encStr(DK, JSON.stringify(SEC)).then(function (v) { return authed({ action: "set", key: "sec", v: v, ifVersion: secVer }); }).then(function (j) {
         if (j.ok) { secVer = j.ver; return; }
@@ -1050,8 +1050,9 @@ var Engine = (function () {
     saving = saving.catch(function () {}).then(function () { return attempt(0); });
     return saving.then(function () { pendingSaves--; }, function (e) { pendingSaves--; status(e.message, true); throw e; });
   }
+  var saveSeq = 0; // bumps on every save, so a slow background refresh never overwrites a newer change
   function saveCore(op) {
-    pendingSaves++;
+    pendingSaves++; saveSeq++;
     function attempt(n) {
       return encStr(DK, JSON.stringify(S)).then(function (v) { return authed({ action: "set", key: "core", v: v, ifVersion: coreVer }); }).then(function (j) {
         if (j.ok) { coreVer = j.ver; return; }
@@ -1160,17 +1161,19 @@ var Engine = (function () {
   }
   function poll() {
     if (!DK || pendingSaves || document.hidden) return;
+    var seq = saveSeq;
+    function fresh(doc, cur) { return seq === saveSeq && !pendingSaves && doc && doc.ver !== cur; }
     authed({ action: "ver", key: "core" }).then(function (j) {
-      if (j.ok && j.ver !== coreVer && !pendingSaves) {
+      if (j.ok && j.ver !== coreVer && seq === saveSeq && !pendingSaves) {
         return authed({ action: "get", key: "core" }).then(function (g) {
-          if (g.ok && g.doc && !pendingSaves) return decodeCore(g.doc).then(function (s) { S = s; coreVer = g.doc.ver; fire(); status("Updated with changes from another device."); });
+          if (g.ok && fresh(g.doc, coreVer)) return decodeCore(g.doc).then(function (s) { if (!fresh(g.doc, coreVer)) return; S = s; coreVer = g.doc.ver; fire(); status("Updated with changes from another device."); });
         });
       }
     }).catch(function () {});
     if (role === "owner") authed({ action: "ver", key: "sec" }).then(function (j) {
-      if (j.ok && j.ver !== secVer && !pendingSaves) {
+      if (j.ok && j.ver !== secVer && seq === saveSeq && !pendingSaves) {
         return authed({ action: "get", key: "sec" }).then(function (g) {
-          if (g.ok && g.doc && !pendingSaves) return decodeCore(g.doc).then(function (s) { SEC = s; secVer = g.doc.ver; fire(); });
+          if (g.ok && fresh(g.doc, secVer)) return decodeCore(g.doc).then(function (s) { if (!fresh(g.doc, secVer)) return; SEC = s; secVer = g.doc.ver; fire(); });
         });
       }
     }).catch(function () {});
