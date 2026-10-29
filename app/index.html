@@ -34,7 +34,7 @@ body[data-role="hours"] .owner-only, body[data-role="hours"] .mgr-only, body[dat
 .scope-ed .checks { display: flex; flex-wrap: wrap; gap: 4px 14px; }
 body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.45; }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--head); }
-.wrap { max-width: 1180px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 1480px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 h1, h2, h3 { font-family: var(--f-display); font-weight: 700; letter-spacing: .01em; text-wrap: balance; margin: 0; }
 h2 { font-size: 1.7rem; line-height: 1.1; }
 h3 { font-size: 1.25rem; }
@@ -228,6 +228,25 @@ tr.detail td { background: var(--sunk); padding: 14px 12px 16px; }
 .ssn-wrap { width: 100%; min-width: 0; box-sizing: border-box; }
 .ssn-wrap input { flex: 1 1 0; min-width: 0; width: auto !important; }
 .ssn-wrap .btn, .ssn-wrap select, .ssn-wrap .muted { flex: none; }
+th.num { font-family: var(--f-display); text-align: right; }
+#rOut th, #pOut th { white-space: normal; vertical-align: bottom; line-height: 1.2; }
+#rOut th, #rOut td, #pOut th, #pOut td { padding-left: 9px; padding-right: 9px; }
+.punch-tbl th.p-sel, .punch-tbl td.p-sel { width: 34px; padding-right: 0; }
+.punch-tbl td.p-sel input, .punch-tbl th.p-sel input { width: 17px; height: 17px; margin: 0; cursor: pointer; accent-color: var(--accent); }
+.punch-tbl tr.p-picked td { background: var(--accent-soft); }
+.punch-tbl tr.p-edrow > td { background: var(--sunk); padding: 12px; }
+.punch-tbl tr.p-edrow .day-ed { max-width: 620px; margin: 0; }
+.punch-tbl .p-date { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.p-help { font-size: .86rem; color: var(--muted); margin: 0 0 8px; }
+@media (max-width: 720px) { .punch-tbl tr.p-edrow .day-ed { position: sticky; left: 0; max-width: calc(100vw - 58px); } }
+#pActsBox { position: sticky; bottom: env(safe-area-inset-bottom, 0px); z-index: 3; padding-bottom: 8px; }
+.punch-tbl td.p-nm { white-space: nowrap; }
+.p-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 10px; padding: 10px 14px; background: var(--surface); border: 1.5px solid var(--accent); border-radius: var(--r); box-shadow: 0 -6px 18px rgba(0,0,0,.10); }
+.p-actions input[type=text] { flex: 1 1 220px; min-width: 0; }
+.p-actions .confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--red); font-weight: 600; }
+.p-deleted { margin-top: 14px; }
+.p-deleted summary { cursor: pointer; font-weight: 600; }
+.p-deleted .tbl-wrap { margin-top: 10px; }
 .punch-tbl td.p-notes { white-space: normal; min-width: 170px; }
 .punch-tbl td.p-notes .chip { white-space: normal; display: inline-block; margin: 1px 0; }
 .grid-tbl td:nth-child(2) b, .grid-tbl .g-name b { white-space: nowrap; }
@@ -939,6 +958,7 @@ var Engine = (function () {
       // missed-punch detail should show the original raw text, not the internal keys
       d.issues.forEach(function (x) { if (x.type === "missed" && /^p\d+[se]/.test(x.detail.replace(/^In /, ""))) x.detail = "Incomplete punch"; });
     });
+    if (report.deleted && report.deleted.length) r.deleted = report.deleted;
     r.duplicates = report.duplicates || 0;
     r.runAt = report.runAt;
     r.editedAt = new Date().toISOString();
@@ -1188,6 +1208,16 @@ var Engine = (function () {
           if (n1 > n0) { var last = d.edits[n1 - 1]; out.push("Punch times changed for " + (names[d.id] || "#" + d.id) + " on " + d.date + ": " + segTxt(last.from) + " → " + segTxt(last.to) + (last.note ? " (reason: " + last.note + ")" : "")); }
           else if (o && n0 && !n1 && d.history) out.push("Restored original punch times for " + (names[d.id] || "#" + d.id) + " on " + d.date);
         });
+        var now = {}; (after.days || []).forEach(function (d) { now[d.id + "|" + d.date] = 1; });
+        var gone = (before.days || []).filter(function (d) { return !now[d.id + "|" + d.date]; });
+        if (gone.length && (after.deleted || []).length > (before.deleted || []).length) {
+          var dn = after.deleted[after.deleted.length - 1];
+          out.push("Deleted punches (" + gone.length + (gone.length === 1 ? " day" : " days") + ", week of " + after.weekStart + "): " + gone.slice(0, 15).map(function (d) { return (names[d.id] || "#" + d.id) + " " + d.date + " " + segTxt(d.punches); }).join("; ") +
+            (gone.length > 15 ? "; and " + (gone.length - 15) + " more" : "") + (dn && dn.note ? " (reason: " + dn.note + ")" : ""));
+        }
+        var back = (after.days || []).filter(function (d) { return !old[d.id + "|" + d.date]; });
+        if (back.length && (after.deleted || []).length < (before.deleted || []).length)
+          out.push("Restored deleted punches (week of " + after.weekStart + "): " + back.slice(0, 15).map(function (d) { return (names[d.id] || "#" + d.id) + " " + d.date; }).join("; ") + (back.length > 15 ? "; and " + (back.length - 15) + " more" : ""));
         if (out.length) return out.join("\n");
         return before.runAt !== after.runAt ? "Re-checked week of " + after.weekStart + (after.fileName ? " (" + after.fileName + ")" : "") : null;
       }
@@ -2612,25 +2642,47 @@ var Engine = (function () {
   }
   function currentUser() { return window.punchUser || ""; }
   function applyDayEdit(key, newSegs, note, restore) {
-    var r = JSON.parse(JSON.stringify(st.report));
-    var d = r.days.filter(function (x) { return x.id + "|" + x.date === key; })[0];
-    if (!d) return Promise.reject(new Error("Day not found."));
-    if (restore) {
-      d.edits = (d.edits || []).concat([{ at: new Date().toISOString(), by: currentUser(), from: d.punches, to: d.orig, note: "Restored original times" }]);
-      d.punches = d.orig; d.missed = d.origMissed || d.missed;
-      d.edits.restored = true;
-      var hist = d.edits; d.orig = undefined; d.origMissed = undefined;
-      // keep the history but mark the day as no longer edited
-      d.edits = []; d.history = hist;
-    } else {
-      if (!d.orig) { d.orig = d.punches; d.origMissed = d.missed || []; }
-      d.edits = (d.edits || []).concat([{ at: new Date().toISOString(), by: currentUser(), from: d.punches, to: newSegs, note: note || "" }]);
-      d.punches = newSegs; d.missed = [];
-    }
+    return changeDays(st.report, [{ key: key, segs: newSegs, note: note, restore: restore }]).then(function (res) { return res.ok; });
+  }
+  /** Change days in one saved week and recheck it. Each change: { key: "id|date", segs, note } (no segs = delete the day's punches),
+   *  { key, restore: true } (original times) or { undelete: uid } (bring back deleted punches). Deleted punches are kept in report.deleted. */
+  function changeDays(rep, ch) {
+    if (!rep) return Promise.reject(new Error("Week not found."));
+    var r = JSON.parse(JSON.stringify(rep)), at = new Date().toISOString(), by = currentUser(), names = {};
+    (r.people || []).forEach(function (p) { names[p.id] = p.name; });
+    var del = (r.deleted || []).slice();
+    ch.forEach(function (c) {
+      if (c.undelete) {
+        var i = del.map(function (x) { return x.uid; }).indexOf(c.undelete); if (i < 0) return;
+        var x = del.splice(i, 1)[0], same = r.days.filter(function (d) { return d.id === x.id && d.date === x.date; })[0];
+        if (same) { same.punches = same.punches.concat(x.punches || []).sort(function (a, b) { return a[0] - b[0]; }); same.missed = (same.missed || []).concat(x.missed || []); }
+        else r.days.push({ id: x.id, date: x.date, punches: x.punches || [], missed: x.missed || [], edits: x.edits || [], orig: x.orig, origMissed: x.origMissed });
+        return;
+      }
+      var d = r.days.filter(function (x) { return x.id + "|" + x.date === c.key; })[0];
+      if (!d) return;
+      if (c.restore) {
+        d.edits = (d.edits || []).concat([{ at: at, by: by, from: d.punches, to: d.orig, note: "Restored original times" }]);
+        d.punches = d.orig; d.missed = d.origMissed || d.missed;
+        var hist = d.edits; d.orig = undefined; d.origMissed = undefined;
+        // keep the history but mark the day as no longer edited
+        d.edits = []; d.history = hist;
+      } else if (!c.segs || !c.segs.length) {
+        del.push({ uid: at.replace(/\D/g, "") + Math.random().toString(36).slice(2, 7), id: d.id, date: d.date, name: names[d.id] || "", punches: d.punches, missed: d.missed || [],
+          edits: d.edits, orig: d.orig, origMissed: d.origMissed, at: at, by: by, note: c.note || "" });
+        r.days = r.days.filter(function (x) { return x !== d; });
+      } else {
+        if (!d.orig) { d.orig = d.punches; d.origMissed = d.missed || []; }
+        d.edits = (d.edits || []).concat([{ at: at, by: by, from: d.punches, to: c.segs, note: c.note || "" }]);
+        d.punches = c.segs; d.missed = c.keepMissed ? (d.missed || []) : [];
+      }
+    });
+    r.deleted = del;
     var r2 = E.recheck(r, st.employees, null, st.exceptions);
-    st.report = r2;
-    if (st.batch && st.batch.reports[r2.weekStart]) st.batch.reports[r2.weekStart] = r2;
-    return saveReport(r2);
+    r2.deleted = del;
+    if (st.report && reportKey(st.report) === reportKey(r2)) st.report = r2;
+    if (st.batch && st.batch.reports[r2.weekStart] && reportKey(st.batch.reports[r2.weekStart]) === reportKey(r2)) st.batch.reports[r2.weekStart] = r2;
+    return saveReport(r2).then(function (ok) { return { ok: ok, report: r2 }; });
   }
   function readPunchEditor(box) {
     var segs = [], bad = false;
@@ -3688,7 +3740,7 @@ var Engine = (function () {
      (any date range: summaries, departments, repeat offenders, compare)
      ===================================================================== */
   var repCache = {};
-  st.rng = null; st.rView = "summary"; st.pSort = "date"; st.pLimit = 300;
+  st.rng = null; st.rView = "summary"; st.pSort = "date"; st.pLimit = 300; st.pSel = {};
   function todayStr2() { return todayISO(); }
   function latestWeekRange() {
     var i = st.index.filter(idxInLoc)[0];
@@ -3723,7 +3775,7 @@ var Engine = (function () {
   }
   /** One record per person for the date range: their days (inside the range) and work weeks (ending inside it). */
   function buildRange(reps, from, to) {
-    var people = {}, weeks = [];
+    var people = {}, weeks = [], deleted = [];
     function P(id, name, dept, loc) {
       return people[id] || (people[id] = { id: id, name: name, dept: ((st.employees[id] || {}).dept) || dept || "", loc: loc, days: [], weeks: [] });
     }
@@ -3734,7 +3786,12 @@ var Engine = (function () {
       r.days.forEach(function (d) {
         if (d.date < from || d.date > to) return;
         var p = info[d.id] || { name: "#" + d.id, dept: "" };
-        P(d.id, p.name, p.dept, loc).days.push(Object.assign({ week: r.weekStart, location: loc, sched: d.sched }, d));
+        P(d.id, p.name, p.dept, loc).days.push(Object.assign({ week: r.weekStart, location: loc, sched: d.sched, rkey: reportKey(r0) }, d));
+      });
+      (r0.deleted || []).forEach(function (x) {
+        if (x.date < from || x.date > to) return;
+        if (scope() && !inScopeEmp(st.employees[x.id])) return;
+        deleted.push(Object.assign({ rkey: reportKey(r0), location: loc }, x));
       });
       r.people.forEach(function (p) {
         if (r.weekEnd < from || r.weekEnd > to) return;
@@ -3770,7 +3827,8 @@ var Engine = (function () {
       x.t = t;
       return x;
     }).sort(function (a, b) { return (a.dept || "~").localeCompare(b.dept || "~") || a.name.localeCompare(b.name); });
-    return { from: from, to: to, people: list, weeks: weeks, reports: reps };
+    deleted.sort(function (a, b) { return a.date.localeCompare(b.date) || (a.name || "").localeCompare(b.name || ""); });
+    return { from: from, to: to, people: list, weeks: weeks, reports: reps, deleted: deleted };
   }
   function deptTotals(data) {
     var m = {};
@@ -3813,9 +3871,9 @@ var Engine = (function () {
         if (d.early) probs.push("Early " + minsTxt(d.early)); if (d.late) probs.push("Late " + minsTxt(d.late));
         if (d.over) probs.push("+" + hrs(d.over) + "h over"); if (d.notScheduled) probs.push("Not scheduled");
         if (onlyEd && !edited) return; if (onlyBad && !probs.length) return;
-        var segs = d.punches.length ? d.punches : [[null, null]];
+        var segs = d.punches.length ? d.punches : [[null, null]], dk = d.rkey + "|" + d.id + "|" + d.date;
         segs.forEach(function (sg, k) {
-          rows.push({ date: d.date, id: x.id, name: x.name, dept: x.dept, loc: d.location, inM: sg[0], outM: sg[1], segH: sg[0] == null ? 0 : (sg[1] - sg[0]) / 60,
+          rows.push({ key: dk + "|" + (d.punches.length ? k : "m"), dk: dk, date: d.date, id: x.id, name: x.name, dept: x.dept, loc: d.location, inM: sg[0], outM: sg[1], segH: sg[0] == null ? 0 : (sg[1] - sg[0]) / 60,
             dayH: k === 0 ? d.worked : null, sched: k === 0 ? d.sched : null, edited: edited, probs: k === 0 ? probs : [], gap: k > 0 ? d.gaps[k - 1] : null, first: k === 0, missed: k === 0 ? d.missed : null, d: d });
         });
       });
@@ -3838,32 +3896,105 @@ var Engine = (function () {
     dsel.innerHTML = "<option value=\"\">All departments</option>" + ds.map(function (d) { return "<option" + (d === cur ? " selected" : "") + ">" + esc(d) + "</option>"; }).join("");
     var r = getRange();
     if (!st.db) { el.innerHTML = "<div class=\"panel empty\"><p>Saved weeks aren't available in this view.</p></div>"; return; }
-    el.innerHTML = "<div class=\"panel empty\"><p>Loading punches for " + esc(rangeTxt(r)) + "…</p></div>";
+    if (!st.pData || st.pData.from !== r.from || st.pData.to !== r.to) { st.pSel = {}; st.pConfirm = false; st.pEdit = null; st.pMsg = null; }
+    if (!st.pBusy) el.innerHTML = "<div class=\"panel empty\"><p>Loading punches for " + esc(rangeTxt(r)) + "…</p></div>";
     loadRange(r.from, r.to).then(function (reps) {
       st.pData = buildRange(reps, r.from, r.to);
       drawPunches();
     });
   }
+  function canEditPunches() { return myRole() !== "viewer"; }
   function drawPunches() {
     var el = $("#pOut"), data = st.pData; if (!el || !data) return;
-    if (!data.reports.length) { el.innerHTML = "<div class=\"panel empty\"><h3>No saved weeks in these dates</h3><p>Pick other dates, or check a week on the Weekly report tab first.</p></div>"; return; }
-    var rows = punchRows(data), people = {}, tot = 0, ed = 0;
-    rows.forEach(function (x) { people[x.id] = 1; tot += x.segH; if (x.edited && x.first) ed++; });
+    st.pBusy = false;
+    var ed = canEditPunches(), msg = st.pMsg ? "<p class=\"msg " + (st.pMsg.cls || "") + "\" style=\"margin:0 0 8px\">" + esc(st.pMsg.text) + "</p>" : "";
+    if (!data.reports.length) { el.innerHTML = msg + "<div class=\"panel empty\"><h3>No saved weeks in these dates</h3><p>Pick other dates, or check a week on the Weekly report tab first.</p></div>"; return; }
+    var rows = punchRows(data), people = {}, tot = 0, edn = 0;
+    rows.forEach(function (x) { people[x.id] = 1; tot += x.segH; if (x.edited && x.first) edn++; });
+    st.pRows = rows;
     var shown = rows.slice(0, st.pLimit), multi = multiLoc() && st.loc === "all";
-    el.innerHTML = "<p class=\"muted\" style=\"margin:4px 0 8px;font-size:.9rem\"><b>" + rows.length + "</b> punches · " + plural(Object.keys(people).length, "person", "people") + " · <b>" + hrs(tot) + "</b> hours · " + plural(ed, "edited day") +
+    var allSel = rows.length > 0 && rows.every(function (x) { return st.pSel[x.key]; });
+    var cols = 10 + (multi ? 1 : 0) + (ed ? 1 : 0);
+    var body = "";
+    shown.forEach(function (x, i) {
+      var dd = DAYS[E.weekday(x.date)] + " " + E.fmtDate(x.date);
+      var notes = (x.edited && x.first ? "<span class=\"chip purple\">Edited</span> " : "") + x.probs.map(function (p) { return "<span class=\"chip red\">" + esc(p) + "</span>"; }).join(" ") +
+        (x.missed && x.missed.length ? " <span class=\"chip red\">Missed punch</span>" : "");
+      body += "<tr class=\"" + (x.first ? "p-first" : "p-more") + (st.pSel[x.key] ? " p-picked" : "") + "\" data-row=\"" + esc(x.key) + "\">" +
+        (ed ? "<td class=\"p-sel\"><input type=\"checkbox\" data-psel=\"" + esc(x.key) + "\"" + (st.pSel[x.key] ? " checked" : "") + " aria-label=\"Select punch " + esc(x.name + " " + dd) + "\"></td>" : "") +
+        "<td>" + (x.first ? "<span class=\"p-date\">" + dd + (ed ? "<button type=\"button\" class=\"btn small\" data-pedit=\"" + esc(x.dk) + "\">" + (st.pEdit === x.dk ? "Close" : "Edit") + "</button>" : "") + "</span>" : "") + "</td>" +
+        "<td class=\"p-nm\">" + (x.first ? "<b>" + esc(x.name) + "</b> <span class=\"idtag\">#" + esc(x.id) + "</span>" : "") + "</td><td>" + (x.first ? esc(x.dept || "—") : "") + "</td>" +
+        (multi ? "<td>" + (x.first ? esc(locName(x.loc)) : "") + "</td>" : "") +
+        "<td class=\"mono" + (x.first && x.d.early ? " red" : "") + "\">" + (x.inM == null ? "—" : E.fmtMin(x.inM)) + "</td><td class=\"mono\">" + (x.outM == null ? "—" : E.fmtMin(x.outM)) + "</td>" +
+        "<td class=\"num\">" + (x.inM == null ? "" : hrs(x.segH)) + "</td><td class=\"num\">" + (x.gap == null ? "" : Math.round(x.gap) + " min") + "</td><td class=\"num\"><b>" + (x.dayH == null ? "" : hrs(x.dayH)) + "</b></td>" +
+        "<td class=\"mono\" style=\"white-space:nowrap\">" + (x.first ? (x.sched ? shortT(x.sched.from) + "–" + shortT(x.sched.till) : "<span class=\"muted\">—</span>") : "") + "</td><td class=\"p-notes\">" + notes + "</td></tr>";
+      var nx = shown[i + 1];
+      if (ed && st.pEdit === x.dk && (!nx || nx.dk !== x.dk))
+        body += "<tr class=\"p-edrow\"><td colspan=\"" + cols + "\"><div data-rkey=\"" + esc(x.d.rkey) + "\">" + dayEditorHtml(x.d) + "</div></td></tr>";
+    });
+    el.innerHTML = msg + "<p class=\"muted\" style=\"margin:4px 0 8px;font-size:.9rem\"><b>" + rows.length + "</b> punches · " + plural(Object.keys(people).length, "person", "people") + " · <b>" + hrs(tot) + "</b> hours · " + plural(edn, "edited day") +
       " · " + esc(rangeTxt(data)) + " (" + plural(data.reports.length, "saved week") + ")</p>" +
-      "<div class=\"tbl-wrap\"><table class=\"punch-tbl\"><thead><tr><th>Date</th><th>Employee</th><th>Dept</th>" + (multi ? "<th>Location</th>" : "") + "<th>In</th><th>Out</th><th class=\"num\">Hours</th><th class=\"num\">Break before</th><th class=\"num\">Day total</th><th>Scheduled</th><th>Notes</th></tr></thead><tbody>" +
-      shown.map(function (x) {
-        var dd = DAYS[E.weekday(x.date)] + " " + E.fmtDate(x.date);
-        var notes = (x.edited && x.first ? "<span class=\"chip purple\">Edited</span> " : "") + x.probs.map(function (p) { return "<span class=\"chip red\">" + esc(p) + "</span>"; }).join(" ") +
-          (x.missed && x.missed.length ? " <span class=\"chip red\">Missed punch</span>" : "");
-        return "<tr class=\"" + (x.first ? "p-first" : "p-more") + "\"><td style=\"white-space:nowrap\">" + (x.first ? dd : "") + "</td><td>" + (x.first ? "<b>" + esc(x.name) + "</b> <span class=\"idtag\">#" + esc(x.id) + "</span>" : "") + "</td><td>" + (x.first ? esc(x.dept || "—") : "") + "</td>" +
-          (multi ? "<td>" + (x.first ? esc(locName(x.loc)) : "") + "</td>" : "") +
-          "<td class=\"mono" + (x.first && x.d.early ? " red" : "") + "\">" + (x.inM == null ? "—" : E.fmtMin(x.inM)) + "</td><td class=\"mono\">" + (x.outM == null ? "—" : E.fmtMin(x.outM)) + "</td>" +
-          "<td class=\"num\">" + (x.inM == null ? "" : hrs(x.segH)) + "</td><td class=\"num\">" + (x.gap == null ? "" : Math.round(x.gap) + " min") + "</td><td class=\"num\"><b>" + (x.dayH == null ? "" : hrs(x.dayH)) + "</b></td>" +
-          "<td class=\"mono\" style=\"white-space:nowrap\">" + (x.first ? (x.sched ? shortT(x.sched.from) + "–" + shortT(x.sched.till) : "<span class=\"muted\">—</span>") : "") + "</td><td class=\"p-notes\">" + notes + "</td></tr>";
-      }).join("") + "</tbody></table></div>" +
-      (rows.length > shown.length ? "<p style=\"margin-top:8px\"><button class=\"btn\" type=\"button\" id=\"pMore\">Show " + Math.min(300, rows.length - shown.length) + " more (of " + (rows.length - shown.length) + ")</button></p>" : "");
+      (ed ? "<p class=\"p-help\">Click <b>Edit</b> next to a date to change that day's times. To delete punches, tick them, or tick the box at the top to pick every punch in this list (set the dates and filters first), then click Delete.</p>" : "") +
+      "<div class=\"tbl-wrap\"><table class=\"punch-tbl\"><thead><tr>" + (ed ? "<th class=\"p-sel\"><input type=\"checkbox\" id=\"pAll\"" + (allSel ? " checked" : "") + " aria-label=\"Select every punch in this list\" title=\"Select every punch in this list\"></th>" : "") +
+      "<th>Date</th><th>Employee</th><th>Dept</th>" + (multi ? "<th>Location</th>" : "") + "<th>In</th><th>Out</th><th class=\"num\">Hours</th><th class=\"num\">Break before</th><th class=\"num\">Day total</th><th>Scheduled</th><th>Notes</th></tr></thead><tbody>" +
+      body + "</tbody></table></div>" +
+      (rows.length > shown.length ? "<p style=\"margin-top:8px\"><button class=\"btn\" type=\"button\" id=\"pMore\">Show " + Math.min(300, rows.length - shown.length) + " more (of " + (rows.length - shown.length) + ")</button></p>" : "") +
+      "<div id=\"pActsBox\"></div>" + deletedHtml(data, ed);
+    drawPActs();
+    var bx = $("#pOut .day-ed"); if (bx && st.pFocus) { st.pFocus = false; var f = $(".pe-in", bx); if (f) f.focus(); }
+  }
+  function pSelected() { return (st.pRows || []).filter(function (x) { return st.pSel[x.key]; }); }
+  function drawPActs() {
+    var box = $("#pActsBox"); if (!box) return;
+    var sel = pSelected();
+    if (!sel.length || !canEditPunches()) { box.innerHTML = ""; return; }
+    var days = {}; sel.forEach(function (x) { days[x.dk] = 1; });
+    var nd = Object.keys(days).length, conf = st.pConfirm;
+    box.innerHTML = "<div class=\"p-actions\" role=\"region\" aria-label=\"Selected punches\"><b>" + plural(sel.length, "punch", "punches") + " selected</b><span class=\"muted\">" + plural(nd, "day") + "</span>" +
+      "<input type=\"text\" id=\"pDelNote\" placeholder=\"Reason (e.g. wrong week imported)\" aria-label=\"Reason for deleting\" value=\"" + esc(st.pNote || "") + "\">" +
+      (conf ? "<span class=\"confirm\">Delete " + plural(sel.length, "punch", "punches") + "? <button type=\"button\" class=\"btn small danger solid\" id=\"pDelYes\">Yes, delete</button><button type=\"button\" class=\"btn small\" id=\"pDelNo\">Keep</button></span>"
+        : "<button type=\"button\" class=\"btn danger\" id=\"pDelGo\">Delete selected</button>") +
+      "<button type=\"button\" class=\"btn\" id=\"pSelClear\">Clear selection</button></div>";
+  }
+  function deletedHtml(data, ed) {
+    var list = data.deleted || [];
+    if (!list.length) return "";
+    var rows = list.map(function (x) {
+      var segs = (x.punches || []).map(function (sg) { return E.fmtMin(sg[0]) + " – " + E.fmtMin(sg[1]); });
+      if ((x.missed || []).length) segs.push("incomplete punch");
+      return "<tr><td style=\"white-space:nowrap\">" + DAYS[E.weekday(x.date)] + " " + E.fmtDate(x.date) + "</td><td class=\"nm-cell\"><b>" + esc(x.name || ((st.employees[x.id] || {}).first || "")) + "</b> <span class=\"idtag\">#" + esc(x.id) + "</span></td>" +
+        "<td class=\"mono\">" + esc(segs.join(", ") || "—") + "</td><td>" + esc(x.by || "") + "</td><td style=\"white-space:nowrap\">" + esc(new Date(x.at).toLocaleString()) + "</td><td>" + esc(x.note || "") + "</td>" +
+        (ed ? "<td><button type=\"button\" class=\"btn small\" data-pundo=\"" + esc(x.rkey + "|" + x.uid) + "\">Restore</button></td>" : "") + "</tr>";
+    }).join("");
+    return "<details class=\"panel p-deleted\"" + (st.pDelOpen ? " open" : "") + " id=\"pDelBox\"><summary>Deleted punches in these dates (" + list.length + ")</summary>" +
+      "<p class=\"p-help\" style=\"margin-top:8px\">Deleted punches no longer count in reports. Restore puts them back and rechecks the week.</p>" +
+      (ed && list.length > 1 ? "<p><button type=\"button\" class=\"btn small\" id=\"pUndoAll\">Restore all " + list.length + "</button></p>" : "") +
+      "<div class=\"tbl-wrap\"><table><thead><tr><th>Date</th><th>Employee</th><th>Punches</th><th>Deleted by</th><th>When</th><th>Reason</th>" + (ed ? "<th></th>" : "") + "</tr></thead><tbody>" + rows + "</tbody></table></div></details>";
+  }
+  /** Run changes grouped by saved week, one week after another. groups: { rkey: [changes] } */
+  function runPunchChanges(groups, doneText) {
+    var keys = Object.keys(groups), failed = 0;
+    st.pMsg = { text: "Saving…", cls: "" }; drawPunches();
+    return keys.reduce(function (pr, k) {
+      return pr.then(function () { return loadRep(k).then(function (rep) { return changeDays(rep, groups[k]); }).then(function (res) { if (!res.ok && st.db) failed++; }).catch(function () { failed++; }); });
+    }, Promise.resolve()).then(function () {
+      st.pSel = {}; st.pConfirm = false; st.pEdit = null;
+      st.pMsg = failed ? { text: "Some changes couldn't be saved (" + failed + " of " + keys.length + " weeks). Check your connection and try again.", cls: "err" } : { text: doneText, cls: "ok" };
+      st.pBusy = true; renderPunches();
+      if (st.report) { renderReportShell(); renderReportTable(); }
+    });
+  }
+  function deleteSelectedPunches() {
+    var sel = pSelected(), note = (($("#pDelNote") || {}).value || "").trim(), groups = {}, days = {}, nPunch = sel.length;
+    if (!sel.length) return;
+    sel.forEach(function (x) { (days[x.dk] = days[x.dk] || { d: x.d, picked: {} }).picked[x.key.split("|").pop()] = 1; });
+    Object.keys(days).forEach(function (dk) {
+      var o = days[dk], d = o.d, keep = d.punches.filter(function (sg, k) { return !o.picked[k]; }), dayKey = d.id + "|" + d.date;
+      var ch = keep.length ? { key: dayKey, segs: keep, keepMissed: true, note: "Deleted punch " + d.punches.filter(function (sg, k) { return o.picked[k]; }).map(function (sg) { return E.fmtMin(sg[0]) + "–" + E.fmtMin(sg[1]); }).join(", ") + (note ? ": " + note : "") }
+        : { key: dayKey, segs: null, note: note };
+      (groups[d.rkey] = groups[d.rkey] || []).push(ch);
+    });
+    runPunchChanges(groups, "Deleted " + plural(nPunch, "punch", "punches") + " from " + plural(Object.keys(days).length, "day") + ". The weeks were rechecked. You can restore them from \"Deleted punches\" below.");
   }
   function printPunches() {
     if (!st.pData) return;
@@ -4126,7 +4257,49 @@ var Engine = (function () {
       });
       bar.addEventListener("input", function (e) { if (e.target.id === "pQ") { st.pLimit = 300; drawPunches(); } });
     });
-    $("#pOut").addEventListener("click", function (e) { if (e.target.id === "pMore") { st.pLimit += 300; drawPunches(); } });
+    $("#pOut").addEventListener("click", function (e) {
+      var t = e.target, id = t.id;
+      if (id === "pMore") { st.pLimit += 300; drawPunches(); return; }
+      if (id === "pSelClear") { st.pSel = {}; st.pConfirm = false; drawPunches(); return; }
+      if (id === "pDelGo") { st.pNote = ($("#pDelNote") || {}).value || ""; st.pConfirm = true; drawPActs(); var y = $("#pDelYes"); if (y) y.focus(); return; }
+      if (id === "pDelNo") { st.pNote = ($("#pDelNote") || {}).value || ""; st.pConfirm = false; drawPActs(); return; }
+      if (id === "pDelYes") { deleteSelectedPunches(); return; }
+      if (id === "pUndoAll") {
+        var g = {}; (st.pData.deleted || []).forEach(function (x) { (g[x.rkey] = g[x.rkey] || []).push({ undelete: x.uid }); });
+        runPunchChanges(g, "Restored " + plural(st.pData.deleted.length, "deleted day") + ". The weeks were rechecked."); return;
+      }
+      var u = t.closest("[data-pundo]");
+      if (u) { var parts = u.dataset.pundo.split("|"), uid = parts.pop(), g2 = {}; g2[parts.join("|")] = [{ undelete: uid }]; runPunchChanges(g2, "Restored. The week was rechecked."); return; }
+      var pe0 = t.closest("[data-pedit]");
+      if (pe0) { st.pEdit = st.pEdit === pe0.dataset.pedit ? null : pe0.dataset.pedit; st.pFocus = true; st.pMsg = null; drawPunches(); return; }
+      var pe = t.closest("[data-pe]");
+      if (pe) {
+        var box = pe.closest(".day-ed"), act = pe.dataset.pe, msgEl = $(".pe-msg", box), rkey = box.parentNode.dataset.rkey, key = box.dataset.edfor;
+        if (act === "add") { $(".pe-rows", box).insertAdjacentHTML("beforeend", punchRowHtml(null, null)); return; }
+        if (act === "rm") { pe.closest(".pe-row").remove(); return; }
+        if (act === "cancel") { st.pEdit = null; drawPunches(); return; }
+        var g3 = {};
+        if (act === "restore") { g3[rkey] = [{ key: key, restore: true }]; runPunchChanges(g3, "Original times restored. The week was rechecked."); return; }
+        if (act === "save") {
+          var res = readPunchEditor(box);
+          if (res.error) { msgEl.className = "msg err pe-msg"; msgEl.textContent = res.error; return; }
+          g3[rkey] = [{ key: key, segs: res.segs, note: $(".pe-note", box).value.trim() }];
+          runPunchChanges(g3, res.segs.length ? "Change saved and the week was rechecked." : "That day's punches were deleted. The week was rechecked.");
+        }
+      }
+    });
+    $("#pOut").addEventListener("change", function (e) {
+      var t = e.target;
+      if (t.id === "pAll") { st.pSel = {}; if (t.checked) (st.pRows || []).forEach(function (x) { st.pSel[x.key] = 1; }); st.pConfirm = false; drawPunches(); return; }
+      if (t.dataset && t.dataset.psel) {
+        if (t.checked) st.pSel[t.dataset.psel] = 1; else delete st.pSel[t.dataset.psel];
+        var tr = t.closest("tr"); if (tr) tr.classList.toggle("p-picked", t.checked);
+        var all = $("#pAll"); if (all) all.checked = (st.pRows || []).length > 0 && st.pRows.every(function (x) { return st.pSel[x.key]; });
+        st.pConfirm = false; st.pNote = ($("#pDelNote") || {}).value || st.pNote || ""; drawPActs();
+      }
+    });
+    $("#pOut").addEventListener("input", function (e) { if (e.target.id === "pDelNote") st.pNote = e.target.value; });
+    $("#pOut").addEventListener("toggle", function (e) { if (e.target.id === "pDelBox") st.pDelOpen = e.target.open; }, true);
     // more printouts for the week on the Weekly report tab
     $("#repShell").addEventListener("change", function (e) {
       if (e.target.id !== "printMore") return;
