@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Punch Verification · Weekly time-clock checks for your store</title>
-<meta name="description" content="Punch Verification checks your store's weekly time-clock file against each employee's schedule, break rules and overtime, and prints clear weekly reports and schedule cards.">
+<title>Punch Verification · Weekly time-clock checks for your business</title>
+<meta name="description" content="Punch Verification checks your business's weekly time-clock file against each employee's schedule, break rules and overtime, and prints clear weekly reports and schedule cards.">
 <link rel="canonical" href="https://punchverification.com/">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,6 +12,17 @@
 <script>
   // Old invite links (punchverification.com/?store=...) go straight to the app.
   (function () { if (/[?&]store=/.test(location.search)) location.replace("/app/" + location.search); })();
+</script>
+<script>
+  // Google Analytics: counts visits to the home page and the demo (never the app). Skipped on old invite links.
+  (function () {
+    if (/[?&]store=/.test(location.search)) return;
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function () { dataLayer.push(arguments); };
+    gtag("js", new Date()); gtag("config", "G-X7T7G7YJS2");
+    var s = document.createElement("script"); s.async = true; s.src = "https://www.googletagmanager.com/gtag/js?id=G-X7T7G7YJS2"; document.head.appendChild(s);
+  })();
+  function pvEvent(name) { try { if (window.gtag) gtag("event", name); } catch (e) {} }
 </script>
 <style>
 :root {
@@ -126,9 +137,9 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 24px; justify-content: 
 <div class="hero">
   <div class="wrap hero-grid">
     <div>
-      <p class="eyebrow">Time-clock review for stores</p>
+      <p class="eyebrow">Time-clock review for any business</p>
       <h1>Check every week's punches in minutes, not hours.</h1>
-      <p class="lede">Upload the weekly time-clock file. Punch Verification compares each employee's punches with their schedule and your store's break rules, then shows who missed a break, came in early, left late, or went into overtime.</p>
+      <p class="lede">Upload the weekly time-clock file. Punch Verification compares each employee's punches with their schedule and your break rules, then shows who missed a break, came in early, left late, or went into overtime.</p>
       <div class="cta">
         <a class="btn primary" href="/app/">Sign in</a>
         <a class="btn ghost" href="/demo/">See a live demo</a>
@@ -151,12 +162,12 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 24px; justify-content: 
   <section>
     <div class="wrap">
       <h2 class="sec">What it checks</h2>
-      <p class="sub">Built for a store that already exports its time clock to Excel. Your rules are set once and used every week.</p>
+      <p class="sub">Built for any business that already exports its time clock to Excel: stores, restaurants, warehouses, offices, clinics. Your rules are set once and used every week.</p>
       <div class="feats">
         <div class="feat"><div class="ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><h3>Break rules</h3><p>No more than 6 hours in a row without a break, plus coffee and dinner breaks. Every number is adjustable.</p></div>
         <div class="feat"><div class="ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></div><h3>Schedule vs. actual</h3><p>Red marks for coming in early, leaving late or working more hours than scheduled, with the minutes shown.</p></div>
         <div class="feat"><div class="ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 19V5M4 19h16M8 15l4-4 3 3 5-6"/></svg></div><h3>Overtime</h3><p>Hours over 40 a week (and optionally over 12 in a day), with an estimated cost using each person's pay rate.</p></div>
-        <div class="feat"><div class="ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 9V3h12v6M6 18H4v-7h16v7h-2M8 14h8v7H8z"/></svg></div><h3>Print and export</h3><p>Printable week grids, edited-punch reports, schedule cards with store rules, and Excel downloads.</p></div>
+        <div class="feat"><div class="ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 9V3h12v6M6 18H4v-7h16v7h-2M8 14h8v7H8z"/></svg></div><h3>Print and export</h3><p>Printable week grids, edited-punch reports, schedule cards with your rules, and Excel downloads.</p></div>
       </div>
     </div>
   </section>
@@ -177,7 +188,7 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 24px; justify-content: 
     <div class="wrap">
       <div class="demo-card">
         <div>
-          <h2 class="sec">Try it with a made-up store</h2>
+          <h2 class="sec">Try it with a made-up business</h2>
           <p class="sub" style="margin-bottom:14px">Open the real program with 15 sample employees and one week of punches, or try it with your own time clock file. See the weekly report, the red early/late marks, overtime, the week grid, schedules and printable cards. No sign-in needed; free for 30 days. Nothing is saved, and Excel download is for real accounts.</p>
           <a class="btn primary" href="/demo/">Open the demo</a>
         </div>
@@ -191,16 +202,16 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 24px; justify-content: 
       <div>
         <h2 class="sec">Private by design</h2>
         <ul>
-          <li>Accounts are created by the store owner and sent by invitation. Nobody can sign up on their own.</li>
+          <li>Accounts are created by the business owner and sent by invitation. Nobody can sign up on their own.</li>
           <li>Schedules, reports and employee files are encrypted on your own device before they are saved. The server only stores scrambled data it cannot read.</li>
-          <li>Nothing is shared with advertisers or other companies.</li>
+          <li>Nothing you enter in the app is shared with advertisers or other companies. The home page and demo use Google Analytics to count visits.</li>
           <li>The screen locks itself when nobody is using it.</li>
         </ul>
       </div>
       <div>
         <div class="notice">
           <b>About signing in</b>
-          The sign-in page asks only for your store number, the username your manager gave you, and your Punch Verification password. We will never ask for a Google, email, bank or card password, and we never ask you to download anything.
+          The sign-in page asks only for your business number, the username your manager gave you, and your Punch Verification password. We will never ask for a Google, email, bank or card password, and we never ask you to download anything.
         </div>
         <p style="margin:16px 0 0"><a class="btn primary" href="/app/">Go to sign in</a></p>
       </div>
@@ -212,7 +223,7 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 24px; justify-content: 
   <div class="wrap contact-grid">
     <div>
       <h2 class="sec">Want this for your business?</h2>
-      <p class="sub">Punch Verification can be set up for other stores and businesses, each with its own private, encrypted space. Leave your details and we'll get back to you.</p>
+      <p class="sub">Punch Verification can be set up for any business, each with its own private, encrypted space. Leave your details and we'll get back to you.</p>
       <ul style="margin:0;padding-left:20px;color:var(--muted)"><li>Your own logins and roles for owners, managers and staff</li><li>Works with the Excel export from your time clock</li><li>Several locations under one account</li></ul>
     </div>
     <form class="cform" id="contactForm" novalidate>
@@ -220,7 +231,7 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 24px; justify-content: 
       <label>Business name<input type="text" name="business" autocomplete="organization" maxlength="150"></label></div>
       <div class="two"><label>Email<input type="email" name="email" autocomplete="email" required maxlength="200"></label>
       <label>Phone (optional)<input type="tel" name="phone" autocomplete="tel" maxlength="40"></label></div>
-      <label>How many stores / employees?<input type="text" name="size" placeholder="e.g. 2 stores, about 60 employees" maxlength="80"></label>
+      <label>How many locations / employees?<input type="text" name="size" placeholder="e.g. 2 locations, about 60 employees" maxlength="80"></label>
       <label>Message<textarea name="message" rows="4" maxlength="3000" placeholder="What would you like to know?"></textarea></label>
       <label class="hp" aria-hidden="true">Website<input type="text" name="website" tabindex="-1" autocomplete="off"></label>
       <div><button class="btn primary" type="submit" id="cSend">Send</button></div>
@@ -235,7 +246,12 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 24px; justify-content: 
     <span><a href="/demo/">Demo</a> · <a href="#contact">Contact</a> · <a href="#privacy">Privacy</a> · <a href="/app/">Staff sign in</a></span>
   </div>
 </footer>
-<script>try { document.getElementById("yr").textContent = new Date().getFullYear(); } catch (e) {}
+<script>document.addEventListener("click", function (e) {
+  var a = e.target.closest && e.target.closest("a[href]"); if (!a) return;
+  var h = a.getAttribute("href");
+  if (h === "/demo/") pvEvent("open_demo"); else if (h.indexOf("/app") === 0) pvEvent("sign_in_click");
+});
+try { document.getElementById("yr").textContent = new Date().getFullYear(); } catch (e) {}
 (function () {
   // Messages go to the owner's Gmail through a small Google script (the address isn't shown on the page).
   var URL = "https://script.google.com/macros/s/AKfycbwOc7kxbqarT258dw4_E8mCug2g7g41GfGeobdr3sf5P0_Qym6pbOBXiojHm5pK01i3/exec";
@@ -249,7 +265,7 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 24px; justify-content: 
     d.kind = "contact";
     btn.disabled = true; m.className = "cmsg"; m.textContent = "Sending…";
     fetch(URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(d) })
-      .then(function () { f.reset(); m.className = "cmsg ok"; m.textContent = "Thank you! Your message was sent. We'll get back to you soon."; })
+      .then(function () { pvEvent("generate_lead"); f.reset(); m.className = "cmsg ok"; m.textContent = "Thank you! Your message was sent. We'll get back to you soon."; })
       .catch(function () { m.className = "cmsg err"; m.textContent = "Couldn't send right now. Please check your connection and try again."; })
       .then(function () { btn.disabled = false; });
   });

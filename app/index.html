@@ -78,7 +78,7 @@ main { padding-block: 22px 60px; }
 input[type=text], input[type=password], input[type=tel], input[type=email], input[type=url], input[type=search], input[type=number], input[type=time], input[type=date], select, textarea {
   border: 1px solid var(--line); background: var(--surface); border-radius: var(--r); padding: 7px 10px; min-width: 0; }
 textarea { width: 100%; resize: vertical; line-height: 1.5; }
-label.field { display: grid; gap: 4px; font-size: .86rem; font-weight: 600; color: var(--muted); }
+label.field { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; font-size: .86rem; font-weight: 600; color: var(--muted); }
 label.field input, label.field select { color: var(--ink); font-weight: 400; font-size: .95rem; }
 .check { display: inline-flex; gap: 8px; align-items: center; cursor: pointer; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
@@ -105,7 +105,11 @@ label.field input, label.field select { color: var(--ink); font-weight: 400; fon
 .notice b { font-weight: 600; }
 
 /* tiles */
-.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 720px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+#repShell { display: grid; gap: 14px; margin-bottom: 14px; }
+#repShell > * { margin-top: 0; margin-bottom: 0; }
+#repShell .rep-note { font-size: .84rem; color: var(--muted); margin: -4px 0 0; }
 .tile { text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px; cursor: pointer; display: grid; gap: 2px; align-content: start; }
 .tile:hover { border-color: var(--accent); }
 .tile[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
@@ -122,7 +126,10 @@ th { text-align: left; font-family: var(--f-display); font-weight: 600; text-tra
 td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 tr:last-child td { border-bottom: 0; }
 td.num, th.num { text-align: right; white-space: nowrap; }
-.who { display: flex; align-items: center; gap: 8px; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; font-weight: 600; }
+.who { display: flex; align-items: center; gap: 8px; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; font-weight: 600; white-space: nowrap; }
+.who .idtag { font-weight: 400; }
+.nm-cell { white-space: nowrap; }
+#rOut tbody td:first-child, #rOut tfoot td:first-child, .punch-tbl td:nth-child(2), .grid-tbl .g-name { white-space: nowrap; }
 .who .car { width: 0; height: 0; border-left: 6px solid var(--muted); border-top: 5px solid transparent; border-bottom: 5px solid transparent; transition: transform .15s; flex: none; }
 .who[aria-expanded="true"] .car { transform: rotate(90deg); }
 .idtag { font-family: var(--f-mono); font-size: .8rem; color: var(--muted); font-weight: 400; }
@@ -204,20 +211,26 @@ tr.detail td { background: var(--sunk); padding: 14px 12px 16px; }
 .loc-pick select { background: var(--head); color: var(--head-ink); border-color: var(--head-muted); padding: 4px 8px; }
 .loc-list { display: grid; gap: 6px; }
 .loc-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.loc-row input { flex: 1; min-width: 180px; }
+.loc-row input { flex: 1; min-width: 160px; }
+#locNew { min-width: 160px; }
 .chip.loc { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
 
 /* profile */
 .ed-tabs { margin-top: 14px; }
 .prof { display: grid; gap: 10px; margin-top: 14px; }
 .prof h4 { margin: 8px 0 0; font-family: var(--f-display); font-size: 1.05rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
-.prof .grid4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.prof .grid4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; align-items: start; }
 .prof-top { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
 .photo-box { display: grid; gap: 8px; justify-items: start; }
 .photo { width: 120px; height: 150px; border: 1px solid var(--line); border-radius: var(--r); background: var(--sunk); display: grid; place-items: center; overflow: hidden; font-size: .8rem; text-align: center; }
 .photo img { width: 100%; height: 100%; object-fit: cover; }
 .ssn-wrap { display: flex; gap: 6px; align-items: center; }
-.ssn-wrap input { flex: 1; min-width: 0; }
+.ssn-wrap { width: 100%; min-width: 0; box-sizing: border-box; }
+.ssn-wrap input { flex: 1 1 0; min-width: 0; width: auto !important; }
+.ssn-wrap .btn, .ssn-wrap select, .ssn-wrap .muted { flex: none; }
+.punch-tbl td.p-notes { white-space: normal; min-width: 170px; }
+.punch-tbl td.p-notes .chip { white-space: normal; display: inline-block; margin: 1px 0; }
+.grid-tbl td:nth-child(2) b, .grid-tbl .g-name b { white-space: nowrap; }
 .dep-list { display: grid; gap: 8px; }
 .dep-list:empty::before { content: "No dependents added."; color: var(--muted); font-size: .88rem; }
 .dep-row { display: grid; grid-template-columns: 2fr 1fr 1.2fr 1.3fr auto; gap: 10px; align-items: end; padding: 10px; border: 1px solid var(--line); border-radius: var(--r); background: var(--sunk); }
@@ -250,6 +263,19 @@ tr.detail td { background: var(--sunk); padding: 14px 12px 16px; }
 .rem-row:last-child { border-bottom: 0; }
 .rem-row .who { font-weight: 600; background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; font: inherit; text-decoration: underline; }
 
+/* reports + punches tabs */
+.rr-bar { display: grid; gap: 10px; padding: 14px; margin-bottom: 12px; }
+.rr-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.rr-row .field { display: grid; gap: 4px; font-size: .85rem; }
+.rr-row .grow { flex: 1; }
+.rr-row input[type=search] { min-width: 200px; }
+.punch-tbl td { font-size: .9rem; padding-top: 5px; padding-bottom: 5px; }
+.punch-tbl td.mono { white-space: nowrap; }
+.punch-tbl tr.p-first td { border-top: 1.5px solid var(--line); }
+.punch-tbl tr.p-more td { border-top: 0; }
+.cell-good { color: var(--green); font-weight: 600; }
+td.red, .mono.red { color: var(--red); font-weight: 600; }
+
 /* exceptions */
 .exc-list td { font-size: .9rem; }
 .exc-days { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -269,7 +295,7 @@ tr.detail td { background: var(--sunk); padding: 14px 12px 16px; }
 .card { background: #FFFFFF; color: #111; border: 1.5px solid #222; border-radius: 6px; padding: 14px; font-size: .82rem; display: grid; gap: 8px; align-content: start; }
 .card h4 { margin: 0; font-family: var(--f-display); font-size: 1.25rem; text-transform: uppercase; letter-spacing: .03em; }
 .card .sub { font-size: .78rem; color: #555; }
-.card table td, .card table th { padding: 3px 4px; border-bottom: 1px solid #DDD; font-size: .8rem; background: none; color: #111; }
+.card table td, .card table th { padding: 3px 4px; border-bottom: 1px solid #DDD; font-size: .8rem; background: none; color: #111; white-space: nowrap; }
 .card table th { font-size: .7rem; color: #555; }
 .card .tot td { font-weight: 700; border-bottom: 0; border-top: 1.5px solid #222; }
 .card ul { margin: 0; padding-left: 16px; font-size: .72rem; display: grid; gap: 2px; }
@@ -277,6 +303,8 @@ tr.detail td { background: var(--sunk); padding: 14px 12px 16px; }
 
 /* rules */
 .rules-form { display: grid; gap: 18px; max-width: 820px; }
+.rules-form > *, .rules-form fieldset { min-width: 0; }
+.nowrap { white-space: nowrap; }
 .rules-form fieldset { border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px 16px; margin: 0; display: grid; gap: 12px; background: var(--surface); }
 .rules-form legend { font-family: var(--f-display); font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding: 0 6px; }
 .rule-line { line-height: 2.3; }
@@ -300,6 +328,8 @@ tr.detail td { background: var(--sunk); padding: 14px 12px 16px; }
     <p class="status-pill" id="statusPill">Connecting…</p>
     <nav class="tabs" aria-label="Sections">
       <a href="#report" data-view="report">Weekly report</a>
+      <a href="#reports" data-view="reports">Reports</a>
+      <a href="#punches" data-view="punches">Punches</a>
       <a href="#schedules" data-view="schedules">Schedules</a>
       <a href="#print" data-view="print">Print schedules</a>
       <a href="#rules" data-view="rules">Rules</a>
@@ -326,6 +356,18 @@ tr.detail td { background: var(--sunk); padding: 14px 12px 16px; }
     </div>
     <div id="repShell"></div>
     <div id="repTable"></div>
+  </section>
+
+  <!-- REPORTS: any date range -->
+  <section class="view" id="v-reports" hidden>
+    <div class="panel rr-bar" id="rBar"></div>
+    <div id="rOut"></div>
+  </section>
+
+  <!-- PUNCHES: every imported punch in one list -->
+  <section class="view" id="v-punches" hidden>
+    <div class="panel rr-bar" id="pBar"></div>
+    <div id="pOut"></div>
   </section>
 
   <!-- SCHEDULES -->
@@ -367,7 +409,7 @@ tr.detail td { background: var(--sunk); padding: 14px 12px 16px; }
         </fieldset>
         <label class="field">Card heading<input type="text" id="prTitle" value="Work schedule"></label>
         <label class="field">Starting (optional)<input type="date" id="prDate"></label>
-        <label class="check"><input type="checkbox" id="prRules" checked> Print the store rules on each card</label>
+        <label class="check"><input type="checkbox" id="prRules" checked> Print the rules on each card</label>
         <button class="btn primary" id="pdfBtn" type="button">Download PDF to print</button>
         <p class="msg" id="prMsg"></p>
       </div>
@@ -399,8 +441,8 @@ tr.detail td { background: var(--sunk); padding: 14px 12px 16px; }
         <legend>Overtime</legend>
         <p class="rule-line"><label class="check" style="display:inline-flex"><input type="checkbox" id="r-otOn"> <b>Count overtime</b></label> <span class="muted" style="font-size:.86rem">(on by default; untick to hide overtime from reports)</span></p>
         <p class="rule-line">Pay <input type="number" id="r-otRate" min="1" max="3" step="0.25"> × for hours over <input type="number" id="r-otWeeklyAfter" min="1" max="80" step="0.5"> in a week.</p>
-        <p class="rule-line"><label class="check" style="display:inline-flex"><input type="checkbox" id="r-otDailyOn"> Also overtime for hours over</label> <input type="number" id="r-otDailyAfter" min="1" max="24" step="0.5"> in one day. <span class="muted" style="font-size:.86rem">(Store rule; NY law only requires the weekly limit. Hours aren't counted twice.)</span></p>
-        <p class="rule-line"><label class="check" style="display:inline-flex"><input type="checkbox" id="r-spreadOn"> Flag spread of hours</label> (more than 10 hours from first in to last out) for hourly employees paid at or under $<input type="number" id="r-minWage" min="0" max="100" step="0.01"> an hour.</p>
+        <p class="rule-line"><label class="check" style="display:inline-flex"><input type="checkbox" id="r-otDailyOn"> Also overtime for hours over</label> <input type="number" id="r-otDailyAfter" min="1" max="24" step="0.5"> in one day. <span class="muted" style="font-size:.86rem">(Your own rule; NY law only requires the weekly limit. Hours aren't counted twice.)</span></p>
+        <p class="rule-line"><label class="check" style="display:inline-flex"><input type="checkbox" id="r-spreadOn"> Flag spread of hours</label> (more than 10 hours from first in to last out) for hourly employees paid at or under <span class="nowrap">$<input type="number" id="r-minWage" min="0" max="100" step="0.01"> an hour.</span></p>
         <p class="muted" style="font-size:.86rem">Each employee's profile says Hourly (gets overtime) or Salaried (exempt). Being paid above minimum wage does not by itself make an hourly worker exempt from overtime.</p>
       </fieldset>
       <fieldset>
@@ -415,7 +457,7 @@ tr.detail td { background: var(--sunk); padding: 14px 12px 16px; }
       </fieldset>
       <fieldset class="owner-only">
         <legend>Locations</legend>
-        <p class="muted" style="font-size:.86rem">Add each store location. Employees belong to one location; each location uploads its own time clock file. With one location, nothing else changes.</p>
+        <p class="muted" style="font-size:.86rem">Add each location of your business. Employees belong to one location; each location uploads its own time clock file. With one location, nothing else changes.</p>
         <div id="locList" class="loc-list"></div>
         <div class="toolbar"><input type="text" id="locNew" placeholder="New location name, e.g. Spring Valley" style="flex:1;min-width:200px"><button class="btn" type="button" id="locAdd">Add location</button><span class="msg" id="locMsg"></span></div>
       </fieldset>
@@ -665,13 +707,13 @@ var Engine = (function () {
       return { sched: win(d), note: note, kind: "person" };
     }
     if (sX) {
-      var ds = sX.days[date], n2 = sX.note || "Store exception";
-      if (ds.mode === "off") return { sched: null, note: n2 + " (store closed)", kind: "store" };
+      var ds = sX.days[date], n2 = sX.note || "Business exception";
+      if (ds.mode === "off") return { sched: null, note: n2 + " (closed)", kind: "store" };
       var w = win(ds);
       if (!reg || !w) return { sched: null, note: n2, kind: "store" };
       var f = Math.max(reg.from, w.from), t = Math.min(reg.till, w.till);
-      if (t <= f) return { sched: null, note: n2 + " (outside store hours)", kind: "store" };
-      return { sched: { from: f, till: t, hours: Math.round((t - f) / 60 * 100) / 100 }, note: n2 + " (store " + fmtMin(w.from) + "\u2013" + fmtMin(w.till) + ")", kind: "store" };
+      if (t <= f) return { sched: null, note: n2 + " (outside business hours)", kind: "store" };
+      return { sched: { from: f, till: t, hours: Math.round((t - f) / 60 * 100) / 100 }, note: n2 + " (open " + fmtMin(w.from) + "\u2013" + fmtMin(w.till) + ")", kind: "store" };
     }
     return { sched: reg, note: null, kind: null };
   }
@@ -924,7 +966,7 @@ var Engine = (function () {
 (function () {
   var K_SERVER = "punchcheck:server", K_SESS = "punchcheck:sess2";
   var DEFAULT_SERVER = "https://n8n.punchverification.com/webhook/punch-check";
-  // Each store has its own n8n workflow: store 101 = /webhook/punch-check, any other store = /webhook/punch-check-<number>
+  // Each business has its own n8n workflow: business 101 = /webhook/punch-check, any other business = /webhook/punch-check-<number>
   var K_STORE = "punchcheck:store", WEBHOOK_BASE = "https://n8n.punchverification.com/webhook/", store = "101";
   function storeUrl(c) { c = String(c || "").trim().toLowerCase(); return WEBHOOK_BASE + (c === "101" ? "punch-check" : "punch-check-" + c); }
   var ITER = 250000;
@@ -993,13 +1035,13 @@ var Engine = (function () {
     forbidden: "Your login doesn't have permission for that. Ask an owner.",
     totp: "Your two-step sign-in has run out on this device. Sign in again.",
     totp_bad: "That code isn't right. Check the time on your phone and use the newest code.",
-    exists_master: "This store already has a master login."
+    exists_master: "This business already has a master login."
   };
   function api(body) {
     return fetch(server, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-      .catch(function () { throw { code: "net", message: "Couldn't reach store " + store + ". Check the store number and your internet connection, then try again." }; })
+      .catch(function () { throw { code: "net", message: "Couldn't reach business " + store + ". Check the business number and your internet connection, then try again." }; })
       .then(function (r) {
-        if (r.status === 404) throw { code: "nostore", message: "Store " + store + " isn't set up yet. Check the store number." };
+        if (r.status === 404) throw { code: "nostore", message: "Business " + store + " isn't set up yet. Check the business number." };
         if (!r.ok) throw { code: "http", message: "n8n answered with error " + r.status + ". Check that the workflow is Active and the address ends in /webhook/punch-check." };
         return r.json().catch(function () { throw { code: "json", message: "n8n's answer wasn't readable. Check that the workflow ends with the “Reply to page” node." }; });
       }).then(function (j) { return Array.isArray(j) ? j[0] : j; });
@@ -1127,10 +1169,10 @@ var Engine = (function () {
       }
       if (p === "settings/locations") {
         var n1 = ((before && before.list) || []).map(function (l) { return l.name; }).join(", "), n2 = ((after && after.list) || []).map(function (l) { return l.name; }).join(", ");
-        return n1 === n2 ? null : "Locations: " + (n1 || "Main store") + " → " + n2;
+        return n1 === n2 ? null : "Locations: " + (n1 || "Main location") + " → " + n2;
       }
       if (p.indexOf("exceptions/") === 0) {
-        var x = after || before, nm = x.who === "all" ? "whole store" : (S["employees/" + x.who] ? who(S["employees/" + x.who], x.who) : (x.whoName || "#" + x.who));
+        var x = after || before, nm = x.who === "all" ? "whole business" : (S["employees/" + x.who] ? who(S["employees/" + x.who], x.who) : (x.whoName || "#" + x.who));
         var rng = x.from + (x.to && x.to !== x.from ? " to " + x.to : "");
         return (!before ? "Exception added" : !after ? "Exception removed" : "Exception changed") + ": " + nm + ", " + rng + (x.note ? " (" + x.note + ")" : "");
       }
@@ -1297,7 +1339,7 @@ var Engine = (function () {
     ".logins .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}";
   function el(html) { var d = document.createElement("div"); d.innerHTML = html; return d.firstChild; }
   function head(t) { return "<div><p class=\"eyebrow\">Weekly Punch Check</p><h2 id=\"lockTitle\">" + t + "</h2></div>"; }
-  function srvLine() { return "<p class=\"srv\">Store <b>" + esc(store) + "</b> <button class=\"link\" type=\"button\" id=\"lkStoreChg\">Change store</button></p>"; }
+  function srvLine() { return "<p class=\"srv\">Business <b>" + esc(store) + "</b> <button class=\"link\" type=\"button\" id=\"lkStoreChg\">Change business</button></p>"; }
 
   function screen(mode, msg) {
     var ov = document.getElementById("lock");
@@ -1311,7 +1353,7 @@ var Engine = (function () {
         "<div class=\"row\"><button class=\"btn primary\" type=\"submit\" id=\"lkGo\">Connect</button>" + m + "</div></form>";
     } else if (mode === "create") {
       h = "<form class=\"box\" id=\"lockForm\" data-mode=\"create\">" + head("Create the first login") +
-        "<p>Store " + esc(store) + " is set up and empty. Enter the setup code from its n8n workflow, then pick a username and password.</p>" +
+        "<p>Business " + esc(store) + " is set up and empty. Enter the setup code from its n8n workflow, then pick a username and password.</p>" +
         "<label class=\"field\">Setup code<input type=\"password\" id=\"lkCode\" autocomplete=\"off\" required></label>" +
         "<label class=\"field\">Username<input type=\"text\" id=\"lkUser\" autocomplete=\"username\" required></label>" +
         "<label class=\"field\">Password<input type=\"password\" id=\"lkPw\" autocomplete=\"new-password\" required minlength=\"8\"></label>" +
@@ -1340,7 +1382,7 @@ var Engine = (function () {
         "<div class=\"row\"><button class=\"btn\" type=\"button\" id=\"lkBack\">Back to sign in</button></div></div>";
     } else {
       h = "<form class=\"box\" id=\"lockForm\" data-mode=\"login\">" + head("Sign in") +
-        "<label class=\"field\">Store #<input type=\"text\" id=\"lkStore\" inputmode=\"numeric\" autocomplete=\"organization\" value=\"" + esc(store) + "\" required></label>" +
+        "<label class=\"field\">Business #<input type=\"text\" id=\"lkStore\" inputmode=\"numeric\" autocomplete=\"organization\" value=\"" + esc(store) + "\" required></label>" +
         "<label class=\"field\">Username<input type=\"text\" id=\"lkUser\" autocomplete=\"username\" required></label>" +
         "<label class=\"field\">Password<input type=\"password\" id=\"lkPw\" autocomplete=\"current-password\" required></label>" +
         "<div class=\"row\"><button class=\"btn primary\" type=\"submit\" id=\"lkGo\">Sign in</button>" + m + "</div>" +
@@ -1460,11 +1502,11 @@ var Engine = (function () {
       }).catch(function (er) { DK = null; busy(false, er.message || "Couldn't create the login."); });
     } else {
       var sc = (document.getElementById("lkStore").value || "").trim();
-      if (!/^[A-Za-z0-9-]{1,20}$/.test(sc)) { busy(false, "Enter your store number."); return; }
+      if (!/^[A-Za-z0-9-]{1,20}$/.test(sc)) { busy(false, "Enter your business number."); return; }
       store = sc; server = storeUrl(sc);
       busy(true, "Signing in…");
       api({ action: "hello" }).then(function (h) {
-        if (!h || !h.ok) throw { message: "Store " + store + " didn't answer like a Punch Check store. Check the number." };
+        if (!h || !h.ok) throw { message: "Business " + store + " didn't answer like a Punch Verification business. Check the number." };
         if (!h.setup) { screen("create", ""); throw { silent: true }; }
         return api({ action: "salt", user: u });
       }).then(function (j) {
@@ -1522,7 +1564,7 @@ var Engine = (function () {
   function addBar() {
     if (document.getElementById("lockBtn")) return;
     var pill = document.getElementById("statusPill"); if (!pill) return;
-    var wrap = el("<span class=\"status-pill\" style=\"padding-bottom:8px\">Store <b>" + esc(store) + "</b> · signed in as <b>" + esc(user) + "</b> · encrypted<button type=\"button\" id=\"lockBtn\">Lock</button></span>");
+    var wrap = el("<span class=\"status-pill\" style=\"padding-bottom:8px\">Business <b>" + esc(store) + "</b> · signed in as <b>" + esc(user) + "</b> · encrypted<button type=\"button\" id=\"lockBtn\">Lock</button></span>");
     pill.parentNode.insertBefore(wrap, pill.nextSibling);
     pill.parentNode.insertBefore(el("<span id=\"syncMsg\" role=\"status\"></span>"), wrap.nextSibling);
   }
@@ -1620,7 +1662,7 @@ var Engine = (function () {
       var list = document.getElementById("lgList"); if (!list || !j.ok) return;
       var mb = document.getElementById("masterBox");
       if (mb) mb.innerHTML = isMaster ? "<p class=\"notice info\" style=\"margin:0 0 8px\"><span><b>You are the master login.</b> Nobody else can see this login in the list, reset its password, change its role or remove it.</span></p>"
-        : (!j.hasMaster ? "<p style=\"margin:0 0 8px\"><button class=\"btn small\" type=\"button\" id=\"claimMaster\">Make me the master login</button> <span class=\"muted\" style=\"font-size:.85rem\">A hidden login nobody else can see, reset, change or remove. Only one per store; can't be undone from here.</span></p>" : "");
+        : (!j.hasMaster ? "<p style=\"margin:0 0 8px\"><button class=\"btn small\" type=\"button\" id=\"claimMaster\">Make me the master login</button> <span class=\"muted\" style=\"font-size:.85rem\">A hidden login nobody else can see, reset, change or remove. Only one per business; can't be undone from here.</span></p>" : "");
       list.innerHTML = j.users.map(function (u) {
         var me = u.name.toLowerCase() === user.toLowerCase();
         var expired = u.pending && Date.now() - Date.parse(u.created) > 72 * 3600 * 1000;
@@ -1831,8 +1873,8 @@ var Engine = (function () {
       refreshLogins();
       msg("lgMsg", "");
       var link = "https://punchverification.com/app/?store=" + encodeURIComponent(store);
-      var mailBody = "You have been given access to Weekly Punch Check (store " + store + ").\n\nSign in here: " + link + "\nUsername: " + name + "\nOne-time password: " + temp + "\n\nThis one-time password works for 72 hours. When you sign in, you will be asked to choose your own password.";
-      var mailto = email ? "mailto:" + encodeURIComponent(email) + "?subject=" + encodeURIComponent("Your Weekly Punch Check login") + "&body=" + encodeURIComponent(mailBody) : "";
+      var mailBody = "You have been given access to Punch Verification (business " + store + ").\n\nSign in here: " + link + "\nUsername: " + name + "\nOne-time password: " + temp + "\n\nThis one-time password works for 72 hours. When you sign in, you will be asked to choose your own password.";
+      var mailto = email ? "mailto:" + encodeURIComponent(email) + "?subject=" + encodeURIComponent("Your Punch Verification login") + "&body=" + encodeURIComponent(mailBody) : "";
       var manual = "<b>" + esc(temp) + "</b> <button class=\"btn small\" type=\"button\" data-copy=\"" + esc(temp) + "\">Copy</button>" + (mailto ? " <a class=\"btn small\" href=\"" + esc(mailto) + "\">Open my email</a>" : "");
       if (!email) { inviteBox("<span>Login created for <b>" + esc(name) + "</b>. Give them this one-time password (works for 72 hours): " + manual + "</span>"); return; }
       inviteBox("<span>Sending the invite to " + esc(email) + "…</span>");
@@ -1890,7 +1932,7 @@ var Engine = (function () {
         var salt = newSalt();
         return backupKey(pw1, salt).then(function (k) { return encStr(k, JSON.stringify(all)); }).then(function (enc) {
           var d = new Date(), stamp = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
-          saveFile({ filename: "punch-check-backup-store" + store + "-" + stamp + ".json", data: JSON.stringify({ app: "weekly-punch-check", version: 2, encrypted: true, store: store, savedAt: d.toISOString(), summary: counts(all), salt: salt, data: enc }) });
+          saveFile({ filename: "punch-check-backup-business" + store + "-" + stamp + ".json", data: JSON.stringify({ app: "weekly-punch-check", version: 2, encrypted: true, store: store, savedAt: d.toISOString(), summary: counts(all), salt: salt, data: enc }) });
           box("<span>Locked backup saved with " + counts(all) + ". You'll need the backup password to load it.</span>");
         });
       }).catch(function (er) { box("<span>" + esc((er && er.message) || "Couldn't make the backup.") + "</span>"); });
@@ -1930,7 +1972,7 @@ var Engine = (function () {
   function confirmRestore(o) {
     pending = o;
     box("<span>This backup has " + counts(o.data) + (o.savedAt ? " (saved " + new Date(o.savedAt).toLocaleDateString() + ")" : "") +
-      ". Loading it replaces the schedules, rules, saved weeks and documents of store " + esc(store) + " for everyone.</span>" +
+      ". Loading it replaces the schedules, rules, saved weeks and documents of business " + esc(store) + " for everyone.</span>" +
       "<button class=\"btn small primary\" type=\"button\" id=\"bkYes\">Replace with backup</button><button class=\"btn small\" type=\"button\" id=\"bkNo\">Cancel</button>");
   }
   function alertBox(t) { var b = document.getElementById("importBox"); var m = b.querySelector(".bk-err"); if (!m) { m = document.createElement("b"); m.className = "bk-err"; m.style.color = "var(--red)"; b.appendChild(m); } m.textContent = t; }
@@ -1961,7 +2003,7 @@ var Engine = (function () {
     screen("login", "");
     busy(true, "Connecting\u2026");
     api({ action: "hello" }).then(function (j) {
-      if (!j || !j.ok) throw { message: "Store " + store + " didn't answer like a Punch Check store." };
+      if (!j || !j.ok) throw { message: "Business " + store + " didn't answer like a Punch Verification business." };
       if (!j.setup) screen("create"); else busy(false, "");
     }).catch(function (er) { busy(false, er.message); });
   }
@@ -1978,7 +2020,7 @@ var Engine = (function () {
     "Never work 6 hours in a row: punch out for at least 20 minutes before you reach 6 hours.",
     "Punch out for a 30-minute dinner break if you work after 8:00 PM.",
     "All schedule changes must be approved by the manager 2 days in advance.",
-    "If you're not in the store, you have to punch out.",
+    "If you leave the premises, you have to punch out.",
     "If you don't punch properly, we will have to punch you out for the day.",
     "Cell phones can only be used for important reasons.",
     "Using your phone while serving a customer is forbidden."
@@ -2012,7 +2054,7 @@ var Engine = (function () {
     filter: "flagged", dept: "", q: "", open: {}, repView: "people", editDay: null,
     view: "report", edit: null,
     exceptions: [], excLoaded: false, excEdit: null, excShowOld: false,
-    locations: [{ id: "main", name: "Main store" }], loc: "all"
+    locations: [{ id: "main", name: "Main location" }], loc: "all"
   };
 
   function $(s, el) { return (el || document).querySelector(s); }
@@ -2021,7 +2063,7 @@ var Engine = (function () {
   function hrs(n) { return (Math.round(n * 100) / 100).toFixed(2); }
   function multiLoc() { return st.locations.length > 1; }
   function empLoc(e) { return (e && e.location) || st.locations[0].id; }
-  function locName(id) { var l = st.locations.filter(function (x) { return x.id === id; })[0]; return l ? l.name : (id === "main" ? "Main store" : id); }
+  function locName(id) { var l = st.locations.filter(function (x) { return x.id === id; })[0]; return l ? l.name : (id === "main" ? "Main location" : id); }
   function inLoc(e) { return st.loc === "all" || !multiLoc() || empLoc(e) === st.loc; }
   function reportKey(r) { return r.location && r.location !== "main" ? r.weekStart + "@" + r.location : r.weekStart; }
   function idxKey(i) { return i.key || i.weekStart; }
@@ -2051,7 +2093,7 @@ var Engine = (function () {
   }
 
   /* ---------------- routing ---------------- */
-  var VIEWS = ["report", "schedules", "print", "rules"];
+  var VIEWS = ["report", "reports", "punches", "schedules", "print", "rules"];
   function route() {
     var h = (location.hash || "").replace("#", "");
     st.view = VIEWS.indexOf(h) >= 0 ? h : "report";
@@ -2060,6 +2102,8 @@ var Engine = (function () {
     if (st.view === "schedules") { renderReminders(); renderEmpTable(); renderExceptions(); }
     if (st.view === "print") renderPrint();
     if (st.view === "rules") fillRules(false);
+    if (st.view === "punches") renderPunches();
+    if (st.view === "reports") renderReports();
   }
 
   /* ---------------- status ---------------- */
@@ -2100,7 +2144,7 @@ var Engine = (function () {
       }, dbErr);
       st.db.doc("settings/locations").onSnapshot(function (s) {
         var list = s.exists && s.data().list;
-        st.locations = Array.isArray(list) && list.length ? list : [{ id: "main", name: "Main store" }];
+        st.locations = Array.isArray(list) && list.length ? list : [{ id: "main", name: "Main location" }];
         renderLocPick(); renderLocList(); renderEmpTable(); renderPrint(); renderReportShell(); renderReminders();
       }, dbErr);
       st.db.collection("exceptions").limit(1000).onSnapshot(function (snap) {
@@ -2160,6 +2204,7 @@ var Engine = (function () {
   function saveReport(r) {
     if (!st.db) return Promise.resolve(false);
     var key = reportKey(r);
+    repCache[key] = r;
     var idx = { key: key, weekStart: r.weekStart, weekEnd: r.weekEnd, firstDate: r.firstDate, lastDate: r.lastDate, runAt: r.runAt, fileName: r.fileName, totals: r.totals, location: r.location || "main", locationName: r.locationName || "", hours: hoursMap(r) };
     return st.db.doc("reports/" + key).set(JSON.parse(JSON.stringify(r)))
       .then(function () { return st.db.doc("reportIndex/" + key).set(idx); })
@@ -2319,6 +2364,7 @@ var Engine = (function () {
       "<p class=\"meta\">" + esc(r.fileName || "Saved week") + " · checked " + esc(run.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })) + " · punches " + esc(E.fmtDate(r.firstDate)) + "–" + esc(E.fmtDate(r.lastDate)) + "</p></div>" +
       "<div class=\"rep-actions\">" + (savedOpts && st.db ? "<select id=\"savedPick\" aria-label=\"Saved weeks\">" + savedOpts + "</select>" : "") +
       "<button class=\"btn\" id=\"printWeekBtn\" type=\"button\">Print week</button>" +
+      "<select id=\"printMore\" aria-label=\"More printouts\"><option value=\"\">More printouts…</option><option value=\"timecards\">Employee timecards</option><option value=\"payroll\">Payroll summary</option><option value=\"dept\">Department summary</option><option value=\"notices\">Violation notices</option></select>" +
       (r.days.some(function (d) { return d.edits && d.edits.length; }) ? "<button class=\"btn\" id=\"printEditsBtn\" type=\"button\">Print edits (" + r.days.filter(function (d) { return d.edits && d.edits.length; }).length + ")</button>" : "") +
       "<button class=\"btn primary\" id=\"xlsxBtn\" type=\"button\"" + (st.dl || window.punchOpenPdf ? "" : " disabled title=\"Downloads aren't available in this view\"") + ">Download Excel</button></div></div>";
 
@@ -2332,7 +2378,7 @@ var Engine = (function () {
       }).join("") + "</div>";
     }
     var ex = (r.settings && r.settings.exempt) || [];
-    if (ex.length) notes += "<p class=\"muted\" style=\"font-size:.86rem\">Break rules skip " + esc(ex.join(", ")) + ". Schedule checks cover everyone.</p>";
+    if (ex.length) notes += "<p class=\"rep-note\">Break rules skip " + esc(ex.join(", ")) + ". Schedule checks cover everyone.</p>";
 
     function tile(f, k, v, s, cls) {
       return "<button type=\"button\" class=\"tile " + (cls || "") + "\" data-filter=\"" + f + "\" aria-pressed=\"" + (st.filter === f) + "\"><span class=\"k\">" + k + "</span><span class=\"v num\">" + v + "</span><span class=\"s\">" + s + "</span></button>";
@@ -2348,7 +2394,7 @@ var Engine = (function () {
       tile("late", "Left late", T.lateDays, plural(T.latePeople, "person", "people"), T.lateDays ? "bad" : "") +
       (OS.otOn === false ? "" : tile("ot", "Overtime hours", hrs(T.otHours || 0), plural(T.otPeople || 0, "person", "people") + (T.otPay ? " · est. " + money(T.otPay) : ""), T.otHours ? "warn" : "")) +
       (T.spreadDays ? tile("spread", "Spread of hours", T.spreadDays, "days over 10 hrs, min-wage staff", "warn") : "") +
-      "</div>" + (OS.otOn === false ? "" : "<p class=\"muted\" style=\"font-size:.84rem;margin-top:-6px\">Overtime = " + OS.otRate + "× pay for hours over " + OS.otWeeklyAfter + " a week" + (OS.otDailyOn !== false ? " or over " + OS.otDailyAfter + " in one day" : "") + " (never counted twice). Salaried exempt people are skipped. Pay estimate uses the hourly rate in each profile.</p>");
+      "</div>" + (OS.otOn === false ? "" : "<p class=\"rep-note\">Overtime = " + OS.otRate + "× pay for hours over " + OS.otWeeklyAfter + " a week" + (OS.otDailyOn !== false ? " or over " + OS.otDailyAfter + " in one day" : "") + " (never counted twice). Salaried exempt people are skipped. Pay estimate uses the hourly rate in each profile.</p>");
 
     var depts = {}; r.people.forEach(function (p) { if (p.dept) depts[p.dept] = 1; });
     var F = [["flagged", "Flagged"], ["breaks", "Break rules"], ["over", "Over hours"], ["early", "Early"], ["late", "Late"], ["ot", "Overtime"], ["everyone", "Everyone"]];
@@ -2468,7 +2514,7 @@ var Engine = (function () {
         } else {
           h += "<div class=\"muted\">" + (s ? "No punches" : "—") + "</div><div class=\"g-sch\">" + schedLine + "</div>";
         }
-        if (sc.note) h += "<div class=\"g-exc\">" + esc(sc.note) + "</div>";
+        if (sc.note) h += "<div class=\"g-exc\">" + esc(String(sc.note).replace(/ \(open [^)]*\)$/, "")) + "</div>";
         body += "<td class=\"g-cell " + cls + "\">" + h + "</td>";
       });
       body += "<td class=\"num\">" + hrs(p.workedWeek) + (p.schedWeek != null ? "<br><span class=\"muted\">/ " + hrs(p.schedWeek) + "</span>" : "") + (p.otHours ? "<br><span class=\"cell-warn\">OT " + hrs(p.otHours) + "</span>" : "") + "</td></tr>";
@@ -3037,7 +3083,7 @@ var Engine = (function () {
   var FORMS = [
     ["payNotice", "Pay notice (LS 54/59) signed", "Given at hire and after every pay change, in the employee's language."],
     ["i9", "I-9 completed", ""], ["w4", "W-4 received", ""], ["it2104", "NY IT-2104 received", ""],
-    ["handbook", "Handbook / store rules signed", ""]
+    ["handbook", "Handbook / rules signed", ""]
   ];
   function profileHtml(e) {
     var p = e.profile || {}, files = p.files || {};
@@ -3370,7 +3416,7 @@ var Engine = (function () {
 
   /* ---------------- exceptions ---------------- */
   function excWhoName(x) {
-    if (x.who === "all") return "Whole store";
+    if (x.who === "all") return "Whole business";
     var e = st.employees[x.who];
     return e ? empName(e) + " #" + x.who : (x.whoName || "#" + x.who);
   }
@@ -3396,7 +3442,7 @@ var Engine = (function () {
         "<td>" + esc(x.note || "") + "</td>" +
         "<td><button class=\"btn small edit-only\" type=\"button\" data-excedit=\"" + esc(x.id) + "\">Edit</button></td></tr>";
     }).join("");
-    el.innerHTML = "<div class=\"toolbar\"><div><h3>Exceptions</h3><p class=\"muted\" style=\"font-size:.88rem\">Approved hour changes for one person, or special store hours for a holiday. The report uses these instead of the regular schedule on those dates.</p></div><span class=\"grow\"></span>" +
+    el.innerHTML = "<div class=\"toolbar\"><div><h3>Exceptions</h3><p class=\"muted\" style=\"font-size:.88rem\">Approved hour changes for one person, or special business hours for a holiday. The report uses these instead of the regular schedule on those dates.</p></div><span class=\"grow\"></span>" +
       "<button class=\"btn edit-only\" type=\"button\" id=\"excAdd\">Add exception</button></div>" +
       (rows ? "<div class=\"tbl-wrap exc-list\" style=\"margin-top:12px\"><table><thead><tr><th>Dates</th><th>Who</th><th>Changed days</th><th>Reason</th><th></th></tr></thead><tbody>" + rows + "</tbody></table></div>"
         : "<p class=\"muted\" style=\"margin-top:10px\">No exceptions yet.</p>") +
@@ -3410,7 +3456,7 @@ var Engine = (function () {
       var emp = who !== "all" ? st.employees[who] : null;
       var reg = emp ? E.schedDay(emp, DAYS[E.weekday(d)]) : null;
       var regTxt = who === "all" ? "Everyone's own schedule" : (reg ? E.fmtMin(reg.from) + " – " + E.fmtMin(reg.till) : "Off");
-      var lbl = who === "all" ? ["Regular hours", "Store closed", "Store hours"] : ["Regular schedule", "Day off", "Different hours"];
+      var lbl = who === "all" ? ["Regular hours", "Closed", "Business hours"] : ["Regular schedule", "Day off", "Different hours"];
       out.push("<tr data-date=\"" + d + "\" class=\"" + (cur.mode === "hours" ? "" : "reg") + "\"><td><b>" + DAYS[E.weekday(d)] + "</b> " + E.fmtDate(d).slice(0, -5) + "</td>" +
         "<td class=\"muted\" style=\"font-size:.85rem\">" + esc(regTxt) + "</td>" +
         "<td><select class=\"xm\" aria-label=\"Setting for " + d + "\"><option value=\"reg\"" + (cur.mode === "reg" ? " selected" : "") + ">" + lbl[0] + "</option><option value=\"off\"" + (cur.mode === "off" ? " selected" : "") + ">" + lbl[1] + "</option><option value=\"hours\"" + (cur.mode === "hours" ? " selected" : "") + ">" + lbl[2] + "</option></select></td>" +
@@ -3437,7 +3483,7 @@ var Engine = (function () {
     var who = x ? x.who : "all";
     var el = $("#excPanel");
     el.innerHTML = "<form id=\"excForm\" class=\"exc-ed\" novalidate style=\"border:0;margin:0;padding:0\"><h3>" + (x ? "Edit exception" : "Add exception") + "</h3>" +
-      "<div class=\"grid4\"><label class=\"field\">Who<select id=\"xWho\"><option value=\"all\"" + (who === "all" ? " selected" : "") + ">Whole store (everyone)</option>" +
+      "<div class=\"grid4\"><label class=\"field\">Who<select id=\"xWho\"><option value=\"all\"" + (who === "all" ? " selected" : "") + ">Whole business (everyone)</option>" +
       emps.map(function (e) { return "<option value=\"" + esc(e.id) + "\"" + (who === e.id ? " selected" : "") + ">" + esc(empName(e)) + " #" + esc(e.id) + "</option>"; }).join("") + "</select></label>" +
       "<label class=\"field\">From<input type=\"date\" id=\"xFrom\" value=\"" + from + "\"></label>" +
       "<label class=\"field\">To<input type=\"date\" id=\"xTo\" value=\"" + to + "\"></label>" +
@@ -3453,7 +3499,7 @@ var Engine = (function () {
   function excHelp() {
     var who = $("#xWho").value;
     $("#xHelp").textContent = who === "all"
-      ? "Store hours cut everyone's shift to fit: if someone is scheduled 7 AM–5 PM and the store is open 8 AM–1 PM, they're expected 8 AM–1 PM that day. A person's own exception wins over the store's."
+      ? "Business hours cut everyone's shift to fit: if someone is scheduled 7 AM–5 PM and the business is open 8 AM–1 PM, they're expected 8 AM–1 PM that day. A person's own exception wins over the business's."
       : "Set the hours this person was approved to work. Days left on Regular schedule use their normal hours.";
   }
   function redrawExcRows() {
@@ -3474,7 +3520,7 @@ var Engine = (function () {
     var bad = keys.filter(function (k) { return days[k].mode === "hours" && (!days[k].from || !days[k].till); });
     if (bad.length) return err("Add From and Till times for " + bad.map(function (k) { return E.fmtDate(k).slice(0, -5); }).join(", ") + ".");
     var id = st.excEdit.id || ("x" + Date.now().toString(36));
-    var doc = { id: id, who: who, whoName: who === "all" ? "Whole store" : empName(st.employees[who] || { id: who }), from: from, to: to, note: note, days: days, updatedAt: new Date().toISOString() };
+    var doc = { id: id, who: who, whoName: who === "all" ? "Whole business" : empName(st.employees[who] || { id: who }), from: from, to: to, note: note, days: days, updatedAt: new Date().toISOString() };
     m.className = "msg"; m.textContent = "Saving…";
     st.db.doc("exceptions/" + id).set(doc).then(function () {
       st.excEdit = null; renderExceptions();
@@ -3522,7 +3568,7 @@ var Engine = (function () {
       return "<div class=\"card\"><div><h4>" + esc(empName(e)) + "</h4><div class=\"sub\">#" + esc(e.id) + " · " + esc(e.dept || "") + (title ? " · " + esc(title) : "") + (date ? " · starting " + esc(E.fmtDate(date)) : "") + "</div></div>" +
         "<table><thead><tr><th>Day</th><th>From</th><th>To</th><th class=\"num\">Hours</th></tr></thead><tbody>" + rows +
         "<tr class=\"tot\"><td colspan=\"3\">Total hours</td><td class=\"num\">" + hrs(tot) + "</td></tr></tbody></table>" +
-        (rules.length ? "<div><div class=\"rh\">Store rules</div><ul>" + rules.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul></div>" : "") + "</div>";
+        (rules.length ? "<div><div class=\"rh\">Rules</div><ul>" + rules.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul></div>" : "") + "</div>";
     }).join("");
     $("#pdfBtn").disabled = !st.dl || !list.length;
   }
@@ -3562,7 +3608,7 @@ var Engine = (function () {
         cy += 13; doc.setFont("helvetica", "bold"); doc.setFontSize(10);
         doc.text("TOTAL HOURS", cols[0], cy); doc.text(hrs(tot), cols[3], cy, { align: "right" });
         if (rules.length) {
-          cy += 18; doc.setFontSize(8); doc.text("STORE RULES", ix, cy); cy += 3;
+          cy += 18; doc.setFontSize(8); doc.text("RULES", ix, cy); cy += 3;
           doc.setFont("helvetica", "normal"); doc.setFontSize(7.4); doc.setTextColor(30);
           var maxY = y + ch - pad;
           for (var i = 0; i < rules.length; i++) {
@@ -3637,11 +3683,464 @@ var Engine = (function () {
     }).catch(function (e) { m.className = "msg err"; m.textContent = "Couldn't save: " + ((e && e.message) || "try again"); });
   }
 
+  /* =====================================================================
+     PUNCHES tab (every imported punch in one list) and REPORTS tab
+     (any date range: summaries, departments, repeat offenders, compare)
+     ===================================================================== */
+  var repCache = {};
+  st.rng = null; st.rView = "summary"; st.pSort = "date"; st.pLimit = 300;
+  function todayStr2() { return todayISO(); }
+  function latestWeekRange() {
+    var i = st.index.filter(idxInLoc)[0];
+    if (i) return { from: i.weekStart, to: i.weekEnd };
+    var t = todayStr2(), wd = E.weekday(t), sat = E.addDays(t, -((wd + 1) % 7) - 7);
+    return { from: sat, to: E.addDays(sat, 6) };
+  }
+  function getRange() { if (!st.rng) st.rng = latestWeekRange(); return st.rng; }
+  function quickRange(q) {
+    var t = todayStr2(), wd = E.weekday(t), thisSat = E.addDays(t, -((wd + 1) % 7));
+    if (q === "lastweek") return latestWeekRange();
+    if (q === "4w") return { from: E.addDays(thisSat, -28), to: E.addDays(thisSat, -1) };
+    if (q === "month") return { from: t.slice(0, 8) + "01", to: t };
+    if (q === "lastmonth") { var d = new Date(+t.slice(0, 4), +t.slice(5, 7) - 2, 1), e = new Date(+t.slice(0, 4), +t.slice(5, 7) - 1, 0); return { from: isoD(d), to: isoD(e) }; }
+    if (q === "all") { var all = st.index.filter(idxInLoc); if (all.length) return { from: all[all.length - 1].weekStart, to: all[0].weekEnd }; }
+    return latestWeekRange();
+  }
+  function isoD(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  function daysBetween(a, b) { return Math.round((Date.UTC(+b.slice(0, 4), +b.slice(5, 7) - 1, +b.slice(8, 10)) - Date.UTC(+a.slice(0, 4), +a.slice(5, 7) - 1, +a.slice(8, 10))) / 86400000); }
+  function rangeTxt(r) { return E.fmtDate(r.from) + " – " + E.fmtDate(r.to); }
+
+  function loadRep(key) {
+    if (st.report && reportKey(st.report) === key) return Promise.resolve(st.report);
+    if (repCache[key]) return Promise.resolve(repCache[key]);
+    return st.db.doc("reports/" + key).get().then(function (s) { var r = s.exists ? s.data() : null; if (r) repCache[key] = r; return r; }).catch(function () { return null; });
+  }
+  /** Saved weeks touching from..to (this location), loaded and with current overtime rules applied. */
+  function loadRange(from, to) {
+    if (!st.db) return Promise.resolve([]);
+    var keys = st.index.filter(function (i) { return idxInLoc(i) && i.weekEnd >= from && i.weekStart <= to; }).map(idxKey);
+    return Promise.all(keys.map(loadRep)).then(function (list) { return list.filter(Boolean).map(function (r) { otSync(r); return r; }); });
+  }
+  /** One record per person for the date range: their days (inside the range) and work weeks (ending inside it). */
+  function buildRange(reps, from, to) {
+    var people = {}, weeks = [];
+    function P(id, name, dept, loc) {
+      return people[id] || (people[id] = { id: id, name: name, dept: ((st.employees[id] || {}).dept) || dept || "", loc: loc, days: [], weeks: [] });
+    }
+    reps.forEach(function (r0) {
+      var r = viewReport(r0), info = {}, loc = r.location || "main";
+      r.people.forEach(function (p) { info[p.id] = p; });
+      if (r.weekEnd >= from && r.weekEnd <= to) weeks.push(r.weekStart);
+      r.days.forEach(function (d) {
+        if (d.date < from || d.date > to) return;
+        var p = info[d.id] || { name: "#" + d.id, dept: "" };
+        P(d.id, p.name, p.dept, loc).days.push(Object.assign({ week: r.weekStart, location: loc, sched: d.sched }, d));
+      });
+      r.people.forEach(function (p) {
+        if (r.weekEnd < from || r.weekEnd > to) return;
+        P(p.id, p.name, p.dept, loc).weeks.push({ weekStart: r.weekStart, weekEnd: r.weekEnd, p: p, report: r });
+      });
+    });
+    var S2 = Object.assign({}, E.DEFAULT_SETTINGS, st.settings);
+    var list = Object.keys(people).map(function (k) {
+      var x = people[k], t = { worked: 0, sched: 0, days: 0, stretch: 0, coffee: 0, dinner: 0, missed: 0, early: 0, earlyMin: 0, late: 0, lateMin: 0, overDays: 0, overHrs: 0, notSched: 0, edits: 0, spread: 0,
+        reg: 0, ot: 0, regPay: 0, otPay: 0, hasPay: false, exempt: false, rate: null, sick: 0, vac: 0, problemDays: 0 };
+      x.days.sort(function (a, b) { return a.date.localeCompare(b.date); });
+      x.days.forEach(function (d) {
+        t.days++; t.worked += d.worked || 0; if (d.sched) t.sched += d.sched.hours || 0;
+        var bad = false;
+        (d.issues || []).forEach(function (i) { if (t[i.type] != null) t[i.type]++; bad = true; });
+        if (d.early) { t.early++; t.earlyMin += d.early; bad = true; }
+        if (d.late) { t.late++; t.lateMin += d.late; bad = true; }
+        if (d.over) { t.overDays++; t.overHrs += d.over; bad = true; }
+        if (d.notScheduled) { t.notSched++; bad = true; }
+        if (d.edits && d.edits.length) t.edits++;
+        if (d.spread10) t.spread++;
+        if (bad) t.problemDays++;
+      });
+      x.weeks.forEach(function (w) {
+        t.reg += w.p.regHours || 0; t.ot += w.p.otHours || 0;
+        if (w.p.otExempt) t.exempt = true;
+        if (w.p.rate != null) { t.hasPay = true; t.rate = w.p.rate; t.regPay += w.p.regPay || 0; t.otPay += w.p.otPay || 0; }
+      });
+      t.spreadPay = t.spread * Number(S2.minWage || 0);
+      t.breaks = t.stretch + t.coffee + t.dinner + t.missed;
+      var prof = (st.employees[x.id] || {}).profile || {};
+      (prof.timeOff || []).forEach(function (o) { if (o.date >= from && o.date <= to) { if (o.type === "sick") t.sick += Number(o.hours) || 0; if (o.type === "vacation") t.vac += Number(o.hours) || 0; } });
+      x.t = t;
+      return x;
+    }).sort(function (a, b) { return (a.dept || "~").localeCompare(b.dept || "~") || a.name.localeCompare(b.name); });
+    return { from: from, to: to, people: list, weeks: weeks, reports: reps };
+  }
+  function deptTotals(data) {
+    var m = {};
+    data.people.forEach(function (x) {
+      var k = x.dept || "No department", d = m[k] || (m[k] = { dept: k, people: 0, worked: 0, reg: 0, ot: 0, cost: 0, hasPay: false, breaks: 0, early: 0, late: 0, overHrs: 0, problemDays: 0, spread: 0 });
+      d.people++; d.worked += x.t.worked; d.reg += x.t.reg; d.ot += x.t.ot; d.breaks += x.t.breaks; d.early += x.t.early; d.late += x.t.late; d.overHrs += x.t.overHrs; d.problemDays += x.t.problemDays; d.spread += x.t.spread;
+      if (x.t.hasPay) { d.hasPay = true; d.cost += x.t.regPay + x.t.otPay + x.t.spreadPay; }
+    });
+    return Object.keys(m).sort().map(function (k) { return m[k]; });
+  }
+  function grand(rows) {
+    var g = { dept: "Total", people: 0, worked: 0, reg: 0, ot: 0, cost: 0, hasPay: false, breaks: 0, early: 0, late: 0, overHrs: 0, problemDays: 0, spread: 0 };
+    rows.forEach(function (d) { Object.keys(g).forEach(function (k) { if (typeof g[k] === "number") g[k] += d[k] || 0; }); if (d.hasPay) g.hasPay = true; });
+    return g;
+  }
+  function money2(n) { return isOwner() ? money(n) : ""; }
+
+  /* ---------- shared range bar ---------- */
+  function rangeBarHtml(prefix) {
+    var r = getRange();
+    return "<div class=\"rr-row\"><label class=\"field\">From<input type=\"date\" id=\"" + prefix + "From\" value=\"" + r.from + "\"></label><label class=\"field\">To<input type=\"date\" id=\"" + prefix + "To\" value=\"" + r.to + "\"></label>" +
+      "<div class=\"seg\" role=\"group\" aria-label=\"Quick dates\">" + [["lastweek", "Last saved week"], ["4w", "Last 4 weeks"], ["month", "This month"], ["lastmonth", "Last month"], ["all", "All saved"]].map(function (q) {
+        return "<button type=\"button\" data-quick=\"" + q[0] + "\">" + q[1] + "</button>"; }).join("") + "</div></div>";
+  }
+  function readRangeInputs(prefix) {
+    var f = ($("#" + prefix + "From") || {}).value, t = ($("#" + prefix + "To") || {}).value;
+    if (f && t) st.rng = f <= t ? { from: f, to: t } : { from: t, to: f };
+  }
+
+  /* ---------- PUNCHES tab ---------- */
+  function punchRows(data) {
+    var q = (($("#pQ") || {}).value || "").toLowerCase(), dept = ($("#pDept") || {}).value || "", onlyEd = ($("#pEdited") || {}).checked, onlyBad = ($("#pProb") || {}).checked;
+    var rows = [];
+    data.people.forEach(function (x) {
+      if (dept && x.dept !== dept) return;
+      if (q && x.name.toLowerCase().indexOf(q) < 0 && String(x.id).indexOf(q) < 0) return;
+      x.days.forEach(function (d) {
+        var edited = !!(d.edits && d.edits.length), probs = [];
+        (d.issues || []).forEach(function (i) { probs.push(i.label); });
+        if (d.early) probs.push("Early " + minsTxt(d.early)); if (d.late) probs.push("Late " + minsTxt(d.late));
+        if (d.over) probs.push("+" + hrs(d.over) + "h over"); if (d.notScheduled) probs.push("Not scheduled");
+        if (onlyEd && !edited) return; if (onlyBad && !probs.length) return;
+        var segs = d.punches.length ? d.punches : [[null, null]];
+        segs.forEach(function (sg, k) {
+          rows.push({ date: d.date, id: x.id, name: x.name, dept: x.dept, loc: d.location, inM: sg[0], outM: sg[1], segH: sg[0] == null ? 0 : (sg[1] - sg[0]) / 60,
+            dayH: k === 0 ? d.worked : null, sched: k === 0 ? d.sched : null, edited: edited, probs: k === 0 ? probs : [], gap: k > 0 ? d.gaps[k - 1] : null, first: k === 0, missed: k === 0 ? d.missed : null, d: d });
+        });
+      });
+    });
+    rows.sort(st.pSort === "name" ? function (a, b) { return a.name.localeCompare(b.name) || a.date.localeCompare(b.date) || (a.inM || 0) - (b.inM || 0); }
+      : function (a, b) { return a.date.localeCompare(b.date) || (a.dept || "~").localeCompare(b.dept || "~") || a.name.localeCompare(b.name) || (a.inM || 0) - (b.inM || 0); });
+    return rows;
+  }
+  function renderPunches() {
+    var el = $("#pOut"); if (!el) return;
+    var bar = $("#pBar");
+    if (!bar.dataset.ready) {
+      bar.dataset.ready = "1";
+      bar.innerHTML = rangeBarHtml("p") + "<div class=\"rr-row\"><input type=\"search\" id=\"pQ\" placeholder=\"Search name or ID\" aria-label=\"Search\"><select id=\"pDept\" aria-label=\"Department\"></select>" +
+        "<select id=\"pSort\" aria-label=\"Sort\"><option value=\"date\">Sort by date</option><option value=\"name\">Sort by name</option></select>" +
+        "<label class=\"check\"><input type=\"checkbox\" id=\"pEdited\"> Only edited</label><label class=\"check\"><input type=\"checkbox\" id=\"pProb\"> Only days with a problem</label>" +
+        "<span class=\"grow\"></span><button class=\"btn\" type=\"button\" id=\"pPrint\">Print</button><button class=\"btn primary xl-btn\" type=\"button\" id=\"pXlsx\">Download Excel</button></div>";
+    }
+    var ds = deptsAll(), dsel = $("#pDept"), cur = dsel.value;
+    dsel.innerHTML = "<option value=\"\">All departments</option>" + ds.map(function (d) { return "<option" + (d === cur ? " selected" : "") + ">" + esc(d) + "</option>"; }).join("");
+    var r = getRange();
+    if (!st.db) { el.innerHTML = "<div class=\"panel empty\"><p>Saved weeks aren't available in this view.</p></div>"; return; }
+    el.innerHTML = "<div class=\"panel empty\"><p>Loading punches for " + esc(rangeTxt(r)) + "…</p></div>";
+    loadRange(r.from, r.to).then(function (reps) {
+      st.pData = buildRange(reps, r.from, r.to);
+      drawPunches();
+    });
+  }
+  function drawPunches() {
+    var el = $("#pOut"), data = st.pData; if (!el || !data) return;
+    if (!data.reports.length) { el.innerHTML = "<div class=\"panel empty\"><h3>No saved weeks in these dates</h3><p>Pick other dates, or check a week on the Weekly report tab first.</p></div>"; return; }
+    var rows = punchRows(data), people = {}, tot = 0, ed = 0;
+    rows.forEach(function (x) { people[x.id] = 1; tot += x.segH; if (x.edited && x.first) ed++; });
+    var shown = rows.slice(0, st.pLimit), multi = multiLoc() && st.loc === "all";
+    el.innerHTML = "<p class=\"muted\" style=\"margin:4px 0 8px;font-size:.9rem\"><b>" + rows.length + "</b> punches · " + plural(Object.keys(people).length, "person", "people") + " · <b>" + hrs(tot) + "</b> hours · " + plural(ed, "edited day") +
+      " · " + esc(rangeTxt(data)) + " (" + plural(data.reports.length, "saved week") + ")</p>" +
+      "<div class=\"tbl-wrap\"><table class=\"punch-tbl\"><thead><tr><th>Date</th><th>Employee</th><th>Dept</th>" + (multi ? "<th>Location</th>" : "") + "<th>In</th><th>Out</th><th class=\"num\">Hours</th><th class=\"num\">Break before</th><th class=\"num\">Day total</th><th>Scheduled</th><th>Notes</th></tr></thead><tbody>" +
+      shown.map(function (x) {
+        var dd = DAYS[E.weekday(x.date)] + " " + E.fmtDate(x.date);
+        var notes = (x.edited && x.first ? "<span class=\"chip purple\">Edited</span> " : "") + x.probs.map(function (p) { return "<span class=\"chip red\">" + esc(p) + "</span>"; }).join(" ") +
+          (x.missed && x.missed.length ? " <span class=\"chip red\">Missed punch</span>" : "");
+        return "<tr class=\"" + (x.first ? "p-first" : "p-more") + "\"><td style=\"white-space:nowrap\">" + (x.first ? dd : "") + "</td><td>" + (x.first ? "<b>" + esc(x.name) + "</b> <span class=\"idtag\">#" + esc(x.id) + "</span>" : "") + "</td><td>" + (x.first ? esc(x.dept || "—") : "") + "</td>" +
+          (multi ? "<td>" + (x.first ? esc(locName(x.loc)) : "") + "</td>" : "") +
+          "<td class=\"mono" + (x.first && x.d.early ? " red" : "") + "\">" + (x.inM == null ? "—" : E.fmtMin(x.inM)) + "</td><td class=\"mono\">" + (x.outM == null ? "—" : E.fmtMin(x.outM)) + "</td>" +
+          "<td class=\"num\">" + (x.inM == null ? "" : hrs(x.segH)) + "</td><td class=\"num\">" + (x.gap == null ? "" : Math.round(x.gap) + " min") + "</td><td class=\"num\"><b>" + (x.dayH == null ? "" : hrs(x.dayH)) + "</b></td>" +
+          "<td class=\"mono\" style=\"white-space:nowrap\">" + (x.first ? (x.sched ? shortT(x.sched.from) + "–" + shortT(x.sched.till) : "<span class=\"muted\">—</span>") : "") + "</td><td class=\"p-notes\">" + notes + "</td></tr>";
+      }).join("") + "</tbody></table></div>" +
+      (rows.length > shown.length ? "<p style=\"margin-top:8px\"><button class=\"btn\" type=\"button\" id=\"pMore\">Show " + Math.min(300, rows.length - shown.length) + " more (of " + (rows.length - shown.length) + ")</button></p>" : "");
+  }
+  function printPunches() {
+    if (!st.pData) return;
+    var rows = punchRows(st.pData), multi = multiLoc() && st.loc === "all";
+    var body = rows.map(function (x) {
+      return "<tr" + (x.first ? " class=\"p1\"" : "") + "><td>" + (x.first ? DAYS[E.weekday(x.date)] + " " + E.fmtDate(x.date) : "") + "</td><td>" + (x.first ? "<b>" + esc(x.name) + "</b> #" + esc(x.id) : "") + "</td><td>" + (x.first ? esc(x.dept || "") : "") + "</td>" +
+        (multi ? "<td>" + (x.first ? esc(locName(x.loc)) : "") + "</td>" : "") + "<td>" + (x.inM == null ? "—" : E.fmtMin(x.inM)) + "</td><td>" + (x.outM == null ? "—" : E.fmtMin(x.outM)) + "</td><td class=\"num\">" + (x.inM == null ? "" : hrs(x.segH)) + "</td>" +
+        "<td class=\"num\">" + (x.dayH == null ? "" : "<b>" + hrs(x.dayH) + "</b>") + "</td><td>" + (x.first && x.sched ? shortT(x.sched.from) + "–" + shortT(x.sched.till) : "") + "</td><td class=\"r\">" + esc((x.edited && x.first ? "Edited. " : "") + x.probs.join("; ")) + "</td></tr>";
+    }).join("");
+    outPrint(printDoc("Punches " + st.pData.from, "<h1>All punches</h1><div class=\"meta\">" + esc(rangeTxt(st.pData)) + " · " + rows.length + " punches · printed " + esc(new Date().toLocaleString()) + "</div>" +
+      "<style>tr.p1 td{border-top:1.5px solid #9AA4B0}</style><table><thead><tr><th>Date</th><th>Employee</th><th>Dept</th>" + (multi ? "<th>Location</th>" : "") + "<th>In</th><th>Out</th><th class=\"num\">Hours</th><th class=\"num\">Day total</th><th>Scheduled</th><th>Notes</th></tr></thead><tbody>" + body + "</tbody></table>"), "Punches_" + st.pData.from + "_to_" + st.pData.to + ".html");
+  }
+
+  /* ---------- REPORTS tab ---------- */
+  function renderReports() {
+    var el = $("#rOut"), bar = $("#rBar"); if (!el) return;
+    if (!bar.dataset.ready) {
+      bar.dataset.ready = "1";
+      bar.innerHTML = rangeBarHtml("r") + "<div class=\"rr-row\"><div class=\"seg\" role=\"group\" aria-label=\"Report\" id=\"rViews\">" +
+        [["summary", "By employee"], ["dept", "By department"], ["repeat", "Repeat offenders"], ["compare", "Compare to before"]].map(function (v) { return "<button type=\"button\" data-rview=\"" + v[0] + "\">" + v[1] + "</button>"; }).join("") +
+        "</div><span class=\"grow\"></span><select id=\"rPrint\" aria-label=\"Print\"><option value=\"\">Print…</option><option value=\"timecards\">Employee timecards</option><option value=\"payroll\">Payroll summary</option><option value=\"dept\">Department summary</option><option value=\"notices\">Violation notices</option><option value=\"view\">This table</option></select>" +
+        "<button class=\"btn primary xl-btn\" type=\"button\" id=\"rXlsx\">Download Excel</button></div>";
+    }
+    $all("[data-rview]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.rview === st.rView)); });
+    var r = getRange();
+    if (!st.db) { el.innerHTML = "<div class=\"panel empty\"><p>Saved weeks aren't available in this view.</p></div>"; return; }
+    el.innerHTML = "<div class=\"panel empty\"><p>Building the report for " + esc(rangeTxt(r)) + "…</p></div>";
+    var jobs = [loadRange(r.from, r.to).then(function (reps) { st.rData = buildRange(reps, r.from, r.to); })];
+    if (st.rView === "compare") {
+      var len = daysBetween(r.from, r.to) + 1, pTo = E.addDays(r.from, -1), pFrom = E.addDays(pTo, -(len - 1));
+      jobs.push(loadRange(pFrom, pTo).then(function (reps) { st.rPrev = buildRange(reps, pFrom, pTo); }));
+    }
+    if (st.rView === "repeat") {
+      var rf = daysBetween(r.from, r.to) < 27 ? E.addDays(r.to, -55) : r.from;
+      jobs.push(loadRange(rf, r.to).then(function (reps) { st.rRepeat = { from: rf, to: r.to, reports: reps }; }));
+    }
+    Promise.all(jobs).then(drawReports);
+  }
+  function tbl(head, rows, foot) {
+    return "<div class=\"tbl-wrap\"><table><thead><tr>" + head.map(function (h) { return "<th" + (h.n ? " class=\"num\"" : "") + ">" + h.t + "</th>"; }).join("") + "</tr></thead><tbody>" +
+      rows.join("") + "</tbody>" + (foot ? "<tfoot>" + foot + "</tfoot>" : "") + "</table></div>";
+  }
+  function n0(v, fmt) { return v ? (fmt ? fmt(v) : v) : "<span class=\"muted\">—</span>"; }
+  function summaryHead() {
+    var h = [{ t: "Employee" }, { t: "Dept" }, { t: "Days", n: 1 }, { t: "Hours worked", n: 1 }, { t: "Scheduled", n: 1 }, { t: "Regular", n: 1 }, { t: "Overtime", n: 1 },
+      { t: "Break problems", n: 1 }, { t: "Early days", n: 1 }, { t: "Late days", n: 1 }, { t: "Over sched", n: 1 }, { t: "Edited days", n: 1 }];
+    if (isOwner()) h = h.concat([{ t: "Sick hrs", n: 1 }, { t: "Vacation hrs", n: 1 }, { t: "Est. pay", n: 1 }]);
+    return h;
+  }
+  function summaryCells(x) {
+    var t = x.t;
+    return [esc(x.name) + " <span class=\"idtag\">#" + esc(x.id) + "</span>", esc(x.dept || "—"), t.days, hrs(t.worked), hrs(t.sched), hrs(t.reg), t.exempt ? "Exempt" : n0(t.ot, hrs),
+      n0(t.breaks), n0(t.early), n0(t.late), n0(t.overHrs, function (v) { return hrs(v) + "h"; }), n0(t.edits)].concat(isOwner() ? [n0(t.sick, hrs), n0(t.vac, hrs), t.hasPay ? money(t.regPay + t.otPay + t.spreadPay) : "<span class=\"muted\">no rate</span>"] : []);
+  }
+  function repeatRows(rep) {
+    var m = {};
+    rep.reports.forEach(function (r0) {
+      var r = viewReport(r0);
+      r.people.forEach(function (p) {
+        var x = m[p.id] || (m[p.id] = { id: p.id, name: p.name, dept: ((st.employees[p.id] || {}).dept) || p.dept || "", weeks: 0, wBreak: 0, wEarlyLate: 0, wOver: 0, breaks: 0, early: 0, late: 0, last: "" });
+        x.weeks++;
+        var b = p.breakCount || 0, el = (p.earlyDays || 0) + (p.lateDays || 0);
+        if (b) x.wBreak++; if (el) x.wEarlyLate++; if (p.overDays) x.wOver++;
+        x.breaks += b; x.early += p.earlyDays || 0; x.late += p.lateDays || 0;
+        if ((b || el || p.overDays) && r.weekStart > x.last) x.last = r.weekStart;
+      });
+    });
+    return Object.keys(m).map(function (k) { var x = m[k]; x.score = Math.max(x.wBreak, x.wEarlyLate, x.wOver); return x; })
+      .filter(function (x) { return x.score >= 2; }).sort(function (a, b) { return b.score - a.score || b.breaks - a.breaks || a.name.localeCompare(b.name); });
+  }
+  function drawReports() {
+    var el = $("#rOut"), data = st.rData; if (!el || !data) return;
+    if (!data.reports.length) { el.innerHTML = "<div class=\"panel empty\"><h3>No saved weeks in these dates</h3><p>Pick other dates, or check a week on the Weekly report tab first.</p></div>"; return; }
+    var note = "<p class=\"muted\" style=\"font-size:.86rem;margin:4px 0 8px\">" + esc(rangeTxt(data)) + " · " + plural(data.reports.length, "saved week") + ". Hours and problems count the days inside these dates. Overtime and pay count each work week (Sat–Fri) in the period it ends." + (isOwner() ? " Pay is an estimate from profile pay rates." : "") + "</p>";
+    var h = "";
+    if (st.rView === "summary") {
+      var rows = data.people.map(function (x) { return "<tr>" + summaryCells(x).map(function (c, i) { return "<td" + (i > 1 ? " class=\"num\"" : "") + ">" + c + "</td>"; }).join("") + "</tr>"; });
+      var g = grand(deptTotals(data));
+      h = tbl(summaryHead(), rows, "<tr><td><b>Total</b></td><td></td><td></td><td class=\"num\"><b>" + hrs(g.worked) + "</b></td><td></td><td class=\"num\"><b>" + hrs(g.reg) + "</b></td><td class=\"num\"><b>" + hrs(g.ot) + "</b></td><td class=\"num\"><b>" + g.breaks + "</b></td><td class=\"num\">" + g.early + "</td><td class=\"num\">" + g.late + "</td><td class=\"num\">" + hrs(g.overHrs) + "h</td><td></td>" + (isOwner() ? "<td></td><td></td><td class=\"num\"><b>" + money(g.cost) + "</b></td>" : "") + "</tr>");
+    } else if (st.rView === "dept") {
+      var dt = deptTotals(data), gg = grand(dt);
+      var head = [{ t: "Department" }, { t: "People", n: 1 }, { t: "Hours worked", n: 1 }, { t: "Regular", n: 1 }, { t: "Overtime", n: 1 }, { t: "Break problems", n: 1 }, { t: "Early days", n: 1 }, { t: "Late days", n: 1 }, { t: "Over sched hrs", n: 1 }, { t: "Spread days", n: 1 }].concat(isOwner() ? [{ t: "Est. labor cost", n: 1 }] : []);
+      function dr(d, b) { return "<tr><td>" + (b ? "<b>" : "") + esc(d.dept) + (b ? "</b>" : "") + "</td><td class=\"num\">" + d.people + "</td><td class=\"num\">" + hrs(d.worked) + "</td><td class=\"num\">" + hrs(d.reg) + "</td><td class=\"num\">" + hrs(d.ot) + "</td><td class=\"num\">" + d.breaks + "</td><td class=\"num\">" + d.early + "</td><td class=\"num\">" + d.late + "</td><td class=\"num\">" + hrs(d.overHrs) + "</td><td class=\"num\">" + d.spread + "</td>" + (isOwner() ? "<td class=\"num\">" + (d.hasPay ? money(d.cost) : "<span class=\"muted\">no rates</span>") + "</td>" : "") + "</tr>"; }
+      h = tbl(head, dt.map(function (d) { return dr(d); }), dr(gg, true));
+    } else if (st.rView === "repeat") {
+      var rp = st.rRepeat, rr = repeatRows(rp);
+      note = "<p class=\"muted\" style=\"font-size:.86rem;margin:4px 0 8px\">People with the same kind of problem in 2 or more weeks, " + esc(E.fmtDate(rp.from) + " – " + E.fmtDate(rp.to)) + " (" + plural(rp.reports.length, "saved week") + ").</p>";
+      h = rr.length ? tbl([{ t: "Employee" }, { t: "Dept" }, { t: "Weeks worked", n: 1 }, { t: "Weeks with break problems", n: 1 }, { t: "Weeks early/late", n: 1 }, { t: "Weeks over schedule", n: 1 }, { t: "Break problems", n: 1 }, { t: "Early days", n: 1 }, { t: "Late days", n: 1 }, { t: "Last problem week" }],
+        rr.map(function (x) { return "<tr><td><b>" + esc(x.name) + "</b> <span class=\"idtag\">#" + esc(x.id) + "</span></td><td>" + esc(x.dept || "—") + "</td><td class=\"num\">" + x.weeks + "</td><td class=\"num" + (x.wBreak >= 2 ? " cell-bad" : "") + "\">" + x.wBreak + "</td><td class=\"num" + (x.wEarlyLate >= 2 ? " cell-bad" : "") + "\">" + x.wEarlyLate + "</td><td class=\"num" + (x.wOver >= 2 ? " cell-bad" : "") + "\">" + x.wOver + "</td><td class=\"num\">" + x.breaks + "</td><td class=\"num\">" + x.early + "</td><td class=\"num\">" + x.late + "</td><td>" + (x.last ? "Week of " + esc(E.fmtDate(x.last)) : "") + "</td></tr>"; }))
+        : "<div class=\"panel empty\"><p>Nobody had the same problem in 2 or more weeks. 🎉</p></div>";
+    } else {
+      var a = deptTotals(data), b = deptTotals(st.rPrev || { people: [] }), names = {};
+      a.concat(b).forEach(function (d) { names[d.dept] = 1; });
+      var A = {}, B = {}; a.forEach(function (d) { A[d.dept] = d; }); b.forEach(function (d) { B[d.dept] = d; });
+      var keys = Object.keys(names).sort(); A.Total = grand(a); B.Total = grand(b); keys.push("Total");
+      function cmp(x, y, f, lowGood) {
+        var d = (x || 0) - (y || 0), cls = Math.abs(d) < 0.005 ? "muted" : ((d > 0) === !!lowGood ? "cell-bad" : "cell-good");
+        return "<td class=\"num\">" + f(x || 0) + "</td><td class=\"num\">" + f(y || 0) + "</td><td class=\"num " + cls + "\">" + (d > 0 ? "+" : d < 0 ? "−" : "") + f(Math.abs(d)) + "</td>";
+      }
+      var E0 = { people: 0, worked: 0, ot: 0, breaks: 0, early: 0, late: 0, cost: 0 };
+      note = "<p class=\"muted\" style=\"font-size:.86rem;margin:4px 0 8px\">" + esc(rangeTxt(data)) + " compared with the " + (daysBetween(data.from, data.to) + 1) + " days before it (" + esc(rangeTxt(st.rPrev)) + ", " + plural(st.rPrev.reports.length, "saved week") + "). Green = better, red = worse.</p>";
+      var head2 = "<tr><th rowspan=\"2\">Department</th><th colspan=\"3\" class=\"num\">Hours worked</th><th colspan=\"3\" class=\"num\">Overtime</th><th colspan=\"3\" class=\"num\">Break problems</th><th colspan=\"3\" class=\"num\">Early + late days</th>" + (isOwner() ? "<th colspan=\"3\" class=\"num\">Est. labor cost</th>" : "") + "</tr><tr>" +
+        new Array(isOwner() ? 6 : 5).join("<th class=\"num\">Now</th><th class=\"num\">Before</th><th class=\"num\">Change</th>") + "</tr>";
+      h = "<div class=\"tbl-wrap\"><table><thead>" + head2 + "</thead><tbody>" + keys.map(function (k) {
+        var x = A[k] || E0, y = B[k] || E0, bold = k === "Total";
+        return "<tr" + (bold ? " style=\"font-weight:700\"" : "") + "><td>" + esc(k) + "</td>" + cmp(x.worked, y.worked, hrs, true) + cmp(x.ot, y.ot, hrs, true) + cmp(x.breaks, y.breaks, String, true) + cmp(x.early + x.late, y.early + y.late, String, true) + (isOwner() ? cmp(x.cost, y.cost, money, true) : "") + "</tr>";
+      }).join("") + "</tbody></table></div>";
+    }
+    el.innerHTML = note + h;
+  }
+
+  /* ---------- printouts (also used from the Weekly report tab for one week) ---------- */
+  var PORTRAIT = "<style>@page{size:letter portrait;margin:12mm}.page{page-break-after:always;break-after:page;padding-bottom:6px}.page:last-child{page-break-after:auto}" +
+    ".hd{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;border-bottom:2px solid #142231;padding-bottom:6px;margin-bottom:8px}.hd h2{margin:0;font-size:16px}.small{color:#5A6573;font-size:10px}" +
+    ".tot{display:flex;gap:18px;flex-wrap:wrap;margin:8px 0;font-size:11px}.tot b{font-size:13px}.sig{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:26px}.sig div{border-top:1px solid #18212B;padding-top:3px;font-size:10px;color:#5A6573}" +
+    ".box{border:1px solid #CCD2DA;min-height:60px;margin-top:8px;padding:6px;font-size:10px;color:#5A6573}</style>";
+  function storeHead() { return multiLoc() && st.loc !== "all" ? locName(st.loc) + " · " : ""; }
+  function timecardsHtml(data) {
+    var pages = [];
+    data.people.forEach(function (x) {
+      var byWeek = {};
+      x.days.forEach(function (d) { (byWeek[d.week] = byWeek[d.week] || []).push(d); });
+      Object.keys(byWeek).sort().forEach(function (wk) {
+        var ds = byWeek[wk], w = x.weeks.filter(function (z) { return z.weekStart === wk; })[0], p = w && w.p;
+        var tw = 0, ts = 0;
+        var rows = ds.map(function (d) {
+          tw += d.worked || 0; if (d.sched) ts += d.sched.hours || 0;
+          var notes = []; (d.issues || []).forEach(function (i) { notes.push(i.label); });
+          if (d.early) notes.push("Early " + minsTxt(d.early)); if (d.late) notes.push("Late " + minsTxt(d.late)); if (d.over) notes.push("+" + hrs(d.over) + "h over sched"); if (d.notScheduled) notes.push("Not scheduled");
+          if (d.dailyOT) notes.push("OT " + hrs(d.dailyOT) + "h (12+)"); if (d.edits && d.edits.length) notes.push("Edited: " + (d.edits.map(function (e) { return e.note; }).filter(Boolean).join("; ") || "times changed"));
+          return "<tr><td><b>" + DAYS[E.weekday(d.date)] + "</b> " + E.fmtDate(d.date) + "</td><td>" + (d.sched ? shortT(d.sched.from) + "–" + shortT(d.sched.till) : "—") + "</td><td>" + (d.punches.map(function (s) { return E.fmtMin(s[0]) + " – " + E.fmtMin(s[1]); }).join("<br>") || "<span class=\"r\">incomplete</span>") + "</td>" +
+            "<td>" + (d.gaps.map(function (g) { return Math.round(g) + " min"; }).join("<br>") || "—") + "</td><td class=\"num\"><b>" + hrs(d.worked || 0) + "</b></td><td class=\"r\">" + esc(notes.join("; ")) + "</td></tr>";
+        }).join("");
+        pages.push("<div class=\"page\"><div class=\"hd\"><div><h2>Timecard · " + esc(x.name) + " #" + esc(x.id) + "</h2><div class=\"small\">" + esc(storeHead() + (x.dept || "")) + " · Week " + esc(E.fmtDate(wk)) + " – " + esc(E.fmtDate(E.addDays(wk, 6))) + "</div></div><div class=\"small\">Printed " + esc(new Date().toLocaleDateString()) + "</div></div>" +
+          "<table><thead><tr><th>Day</th><th>Scheduled</th><th>Punches</th><th>Breaks</th><th class=\"num\">Hours</th><th>Notes</th></tr></thead><tbody>" + rows + "</tbody></table>" +
+          "<div class=\"tot\"><span>Worked <b>" + hrs(tw) + "</b></span><span>Scheduled <b>" + hrs(ts) + "</b></span>" + (p ? "<span>Regular <b>" + hrs(p.regHours || 0) + "</b></span><span>Overtime <b>" + (p.otExempt ? "exempt" : hrs(p.otHours || 0)) + "</b></span>" : "") + "</div>" +
+          "<p class=\"small\">I confirm these hours are correct.</p><div class=\"sig\"><div>Employee signature / date</div><div>Manager signature / date</div></div></div>");
+      });
+    });
+    return PORTRAIT + (pages.join("") || "<p>No punches in these dates.</p>");
+  }
+  function payrollHtml(data) {
+    var own = isOwner(), S2 = Object.assign({}, E.DEFAULT_SETTINGS, st.settings), tot = { reg: 0, ot: 0, sick: 0, vac: 0, spread: 0, pay: 0 };
+    var rows = data.people.map(function (x) {
+      var t = x.t, pay = t.regPay + t.otPay + t.spreadPay;
+      tot.reg += t.reg; tot.ot += t.ot; tot.sick += t.sick; tot.vac += t.vac; tot.spread += t.spread; if (t.hasPay) tot.pay += pay;
+      return "<tr><td><b>" + esc(x.name) + "</b></td><td>" + esc(x.id) + "</td><td>" + esc(x.dept || "") + "</td>" + (own ? "<td class=\"num\">" + (t.rate != null ? money(t.rate) : "") + "</td>" : "") +
+        "<td class=\"num\">" + hrs(t.reg) + "</td><td class=\"num\">" + (t.exempt ? "exempt" : hrs(t.ot)) + "</td><td class=\"num\"><b>" + hrs(t.reg + t.ot) + "</b></td>" + (own ? "<td class=\"num\">" + (t.sick ? hrs(t.sick) : "") + "</td><td class=\"num\">" + (t.vac ? hrs(t.vac) : "") + "</td>" : "") +
+        "<td class=\"num\">" + (t.spread || "") + "</td>" + (own ? "<td class=\"num\">" + (t.hasPay ? money(t.regPay) : "") + "</td><td class=\"num\">" + (t.hasPay ? money(t.otPay) : "") + "</td><td class=\"num\">" + (t.hasPay && t.spreadPay ? money(t.spreadPay) : "") + "</td><td class=\"num\"><b>" + (t.hasPay ? money(pay) : "no rate") + "</b></td>" : "") + "</tr>";
+    }).join("");
+    return "<h1>Payroll summary</h1><div class=\"meta\">" + esc(storeHead()) + esc(rangeTxt(data)) + " · work weeks ending in these dates: " + data.weeks.map(function (w) { return E.fmtDate(w); }).join(", ") + " · printed " + esc(new Date().toLocaleString()) + "</div>" +
+      "<div class=\"key\">Overtime at " + S2.otRate + "× over " + S2.otWeeklyAfter + " hrs/week" + (S2.otDailyOn !== false ? " or " + S2.otDailyAfter + " hrs/day" : "") + ". Spread of hours: one extra hour at $" + S2.minWage + " per day." + (own ? " Pay amounts are estimates from profile rates; check with your payroll company." : "") + "</div>" +
+      "<table><thead><tr><th>Employee</th><th>ID</th><th>Dept</th>" + (own ? "<th class=\"num\">Rate</th>" : "") + "<th class=\"num\">Regular hrs</th><th class=\"num\">OT hrs</th><th class=\"num\">Total hrs</th>" + (own ? "<th class=\"num\">Sick hrs</th><th class=\"num\">Vacation hrs</th>" : "") + "<th class=\"num\">Spread days</th>" +
+      (own ? "<th class=\"num\">Regular pay</th><th class=\"num\">OT pay</th><th class=\"num\">Spread pay</th><th class=\"num\">Est. total</th>" : "") + "</tr></thead><tbody>" + rows + "</tbody>" +
+      "<tfoot><tr><td><b>Total</b></td><td></td><td></td>" + (own ? "<td></td>" : "") + "<td class=\"num\"><b>" + hrs(tot.reg) + "</b></td><td class=\"num\"><b>" + hrs(tot.ot) + "</b></td><td class=\"num\"><b>" + hrs(tot.reg + tot.ot) + "</b></td>" + (own ? "<td class=\"num\">" + hrs(tot.sick) + "</td><td class=\"num\">" + hrs(tot.vac) + "</td>" : "") + "<td class=\"num\">" + tot.spread + "</td>" + (own ? "<td></td><td></td><td></td><td class=\"num\"><b>" + money(tot.pay) + "</b></td>" : "") + "</tr></tfoot></table>";
+  }
+  function deptHtml(data) {
+    var dt = deptTotals(data), g = grand(dt), own = isOwner();
+    function row(d, b) { return "<tr" + (b ? " style=\"font-weight:bold\"" : "") + "><td>" + esc(d.dept) + "</td><td class=\"num\">" + d.people + "</td><td class=\"num\">" + hrs(d.worked) + "</td><td class=\"num\">" + hrs(d.reg) + "</td><td class=\"num\">" + hrs(d.ot) + "</td><td class=\"num\">" + d.breaks + "</td><td class=\"num\">" + d.early + "</td><td class=\"num\">" + d.late + "</td><td class=\"num\">" + hrs(d.overHrs) + "</td>" + (own ? "<td class=\"num\">" + (d.hasPay ? money(d.cost) : "") + "</td>" : "") + "</tr>"; }
+    return "<h1>Department summary</h1><div class=\"meta\">" + esc(storeHead()) + esc(rangeTxt(data)) + " · printed " + esc(new Date().toLocaleString()) + "</div>" +
+      "<table><thead><tr><th>Department</th><th class=\"num\">People</th><th class=\"num\">Hours worked</th><th class=\"num\">Regular</th><th class=\"num\">Overtime</th><th class=\"num\">Break problems</th><th class=\"num\">Early days</th><th class=\"num\">Late days</th><th class=\"num\">Over sched hrs</th>" + (own ? "<th class=\"num\">Est. labor cost</th>" : "") + "</tr></thead><tbody>" +
+      dt.map(function (d) { return row(d); }).join("") + "</tbody><tfoot>" + row(g, true) + "</tfoot></table>";
+  }
+  function noticesHtml(data) {
+    var rules = rulesList(), pages = [];
+    data.people.forEach(function (x) {
+      var items = [];
+      x.days.forEach(function (d) {
+        var dd = DAYS[E.weekday(d.date)] + " " + E.fmtDate(d.date);
+        (d.issues || []).forEach(function (i) { items.push([dd, i.label, i.detail]); });
+        if (d.early && d.sched) items.push([dd, "Came in early", "Scheduled " + E.fmtMin(d.sched.from) + ", punched in " + E.fmtMin(d.punches[0][0]) + " (" + minsTxt(d.early) + " early)"]);
+        if (d.late && d.sched) items.push([dd, "Left late", "Scheduled until " + E.fmtMin(d.sched.till) + ", punched out " + E.fmtMin(d.punches[d.punches.length - 1][1]) + " (" + minsTxt(d.late) + " late)"]);
+        if (d.notScheduled) items.push([dd, "Worked a day not on the schedule", punchTxt(d.punches)]);
+      });
+      if (!items.length) return;
+      pages.push("<div class=\"page\"><div class=\"hd\"><div><h2>Attendance and break rules notice</h2><div class=\"small\">" + esc(storeHead()) + esc(rangeTxt(data)) + "</div></div><div class=\"small\">" + esc(new Date().toLocaleDateString()) + "</div></div>" +
+        "<p><b>Employee:</b> " + esc(x.name) + " #" + esc(x.id) + (x.dept ? " · " + esc(x.dept) : "") + "</p>" +
+        "<p>Our records show the following during this period:</p>" +
+        "<table><thead><tr><th style=\"width:18%\">Date</th><th style=\"width:28%\">Issue</th><th>Details</th></tr></thead><tbody>" + items.map(function (it) { return "<tr><td>" + esc(it[0]) + "</td><td><b>" + esc(it[1]) + "</b></td><td>" + esc(it[2]) + "</td></tr>"; }).join("") + "</tbody></table>" +
+        (rules.length ? "<p style=\"margin-top:10px\"><b>Rules (reminder):</b></p><ul style=\"margin:4px 0 0 16px;padding:0\">" + rules.map(function (r) { return "<li>" + esc(r) + "</li>"; }).join("") + "</ul>" : "") +
+        "<div class=\"box\">Employee comments:</div><div class=\"sig\"><div>Employee signature / date</div><div>Manager signature / date</div></div></div>");
+    });
+    return PORTRAIT + (pages.join("") || "<p>No problems found in these dates.</p>");
+  }
+  function doPrint(kind, data) {
+    if (!data) return;
+    var map = { timecards: ["Timecards", timecardsHtml], payroll: ["Payroll summary", payrollHtml], dept: ["Department summary", deptHtml], notices: ["Violation notices", noticesHtml] };
+    if (kind === "view") { var o = $("#rOut"); outPrint(printDoc("Report", "<h1>Report</h1>" + (o ? o.innerHTML : "")), "Report_" + data.from + ".html"); return; }
+    var m = map[kind]; if (!m) return;
+    var doc = printDoc(m[0] + " " + data.from, m[1](data));
+    if (kind === "timecards" || kind === "notices") doc = doc.replace("Tip: choose Landscape if your printer asks.", "One page per person. Tip: choose Portrait if your printer asks.");
+    outPrint(doc, m[0].replace(/ /g, "_") + "_" + data.from + "_to_" + data.to + ".html");
+  }
+  /** One week from the Weekly report tab, as range data. */
+  function weekData() { var r = st.report; if (!r) return null; otSync(r); return buildRange([r], r.weekStart, r.weekEnd); }
+
+  /* ---------- Excel for the two tabs ---------- */
+  function saveXlsx(name, sheets, btn) {
+    if (!st.dl) return;
+    var old = btn ? btn.textContent : ""; if (btn) { btn.disabled = true; btn.textContent = "Building…"; }
+    loadLib("exceljs").then(function (ExcelJS) {
+      var wb = new ExcelJS.Workbook();
+      sheets.forEach(function (sh) {
+        var ws = wb.addWorksheet(sh.name);
+        ws.addRow(sh.head); ws.getRow(1).eachCell(function (c) { c.font = { bold: true, color: { argb: "FFFFFFFF" } }; c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF142231" } }; c.alignment = { wrapText: true, vertical: "middle" }; });
+        ws.views = [{ state: "frozen", ySplit: 1 }];
+        sh.rows.forEach(function (r) { ws.addRow(r); });
+        ws.columns.forEach(function (c, i) { c.width = (sh.widths && sh.widths[i]) || 13; });
+      });
+      return wb.xlsx.writeBuffer();
+    }).then(function (buf) { return st.dl.save({ filename: name, data: new Blob([buf]) }); })
+      .catch(function (e) { if (!e || e.code !== "declined") flashTop((e && e.message) || "Couldn't build the Excel file."); })
+      .then(function () { if (btn) { btn.disabled = false; btn.textContent = old; } });
+  }
+  function punchesXlsx(btn) {
+    if (!st.pData) return;
+    var rows = punchRows(st.pData).map(function (x) {
+      return [x.date, DAYS[E.weekday(x.date)], +x.id || x.id, x.name, x.dept, locName(x.loc), x.inM == null ? "" : E.fmtMin(x.inM), x.outM == null ? "" : E.fmtMin(x.outM), x.inM == null ? null : Math.round(x.segH * 100) / 100,
+        x.gap == null ? null : Math.round(x.gap), x.dayH, x.first && x.sched ? E.fmtMin(x.sched.from) + " – " + E.fmtMin(x.sched.till) : "", x.first && x.edited ? "Yes" : "", x.probs.join("; ")];
+    });
+    saveXlsx("Punches_" + st.pData.from + "_to_" + st.pData.to + ".xlsx", [{ name: "Punches", head: ["Date", "Day", "Employee Id", "Name", "Department", "Location", "In", "Out", "Hours", "Break before (min)", "Day total", "Scheduled", "Edited", "Notes"], rows: rows, widths: [12, 6, 11, 26, 14, 16, 10, 10, 8, 10, 9, 20, 8, 50] }], btn);
+  }
+  function reportsXlsx(btn) {
+    var d = st.rData; if (!d) return;
+    var own = isOwner();
+    var s1 = { name: "By employee", head: ["Employee Id", "Name", "Department", "Days", "Hours worked", "Scheduled", "Regular", "Overtime", "Break problems", "Early days", "Late days", "Over sched hrs", "Edited days", "Spread days"].concat(own ? ["Rate", "Sick hrs", "Vacation hrs", "Est. regular pay", "Est. OT pay", "Spread pay", "Est. total"] : []),
+      rows: d.people.map(function (x) { var t = x.t; return [+x.id || x.id, x.name, x.dept, t.days, r2(t.worked), r2(t.sched), r2(t.reg), t.exempt ? "Exempt" : r2(t.ot), t.breaks, t.early, t.late, r2(t.overHrs), t.edits, t.spread].concat(own ? [t.rate, r2(t.sick), r2(t.vac), t.hasPay ? r2(t.regPay) : null, t.hasPay ? r2(t.otPay) : null, t.hasPay ? r2(t.spreadPay) : null, t.hasPay ? r2(t.regPay + t.otPay + t.spreadPay) : null] : []); }),
+      widths: [11, 26, 14] };
+    var dt = deptTotals(d);
+    var s2 = { name: "By department", head: ["Department", "People", "Hours worked", "Regular", "Overtime", "Break problems", "Early days", "Late days", "Over sched hrs", "Spread days"].concat(own ? ["Est. labor cost"] : []),
+      rows: dt.concat([grand(dt)]).map(function (x) { return [x.dept, x.people, r2(x.worked), r2(x.reg), r2(x.ot), x.breaks, x.early, x.late, r2(x.overHrs), x.spread].concat(own ? [x.hasPay ? r2(x.cost) : null] : []); }), widths: [20] };
+    var s3 = { name: "Daily detail", head: ["Date", "Employee Id", "Name", "Department", "Punches", "Hours", "Scheduled", "Problems", "Edited"], rows: [], widths: [12, 11, 26, 14, 40, 8, 20, 60, 8] };
+    d.people.forEach(function (x) { x.days.forEach(function (dd) {
+      var pr = (dd.issues || []).map(function (i) { return i.label; }); if (dd.early) pr.push("Early " + dd.early + "m"); if (dd.late) pr.push("Late " + dd.late + "m"); if (dd.over) pr.push("+" + hrs(dd.over) + "h"); if (dd.notScheduled) pr.push("Not scheduled");
+      s3.rows.push([dd.date, +x.id || x.id, x.name, x.dept, punchTxt(dd.punches), dd.worked, dd.sched ? E.fmtMin(dd.sched.from) + " – " + E.fmtMin(dd.sched.till) : "", pr.join("; "), dd.edits && dd.edits.length ? "Yes" : ""]); }); });
+    saveXlsx("Report_" + d.from + "_to_" + d.to + ".xlsx", [s1, s2, s3], btn);
+  }
+  function r2(n) { return Math.round((n || 0) * 100) / 100; }
+
+  function bindReports() {
+    function rangeChanged(prefix) { readRangeInputs(prefix); if (prefix === "p") renderPunches(); else renderReports(); syncRangeInputs(); }
+    function syncRangeInputs() { var r = getRange(); ["p", "r"].forEach(function (x) { if ($("#" + x + "From")) { $("#" + x + "From").value = r.from; $("#" + x + "To").value = r.to; } }); }
+    ["p", "r"].forEach(function (prefix) {
+      var bar = $("#" + prefix + "Bar");
+      bar.addEventListener("change", function (e) {
+        var id = e.target.id;
+        if (id === prefix + "From" || id === prefix + "To") rangeChanged(prefix);
+        if (id === "pDept" || id === "pEdited" || id === "pProb") { st.pLimit = 300; drawPunches(); }
+        if (id === "pSort") { st.pSort = e.target.value; drawPunches(); }
+        if (id === "rPrint") { var k = e.target.value; e.target.value = ""; doPrint(k, st.rData); }
+      });
+      bar.addEventListener("click", function (e) {
+        var q = e.target.closest("[data-quick]");
+        if (q) { st.rng = quickRange(q.dataset.quick); syncRangeInputs(); if (prefix === "p") renderPunches(); else renderReports(); return; }
+        var v = e.target.closest("[data-rview]");
+        if (v) { st.rView = v.dataset.rview; renderReports(); return; }
+        if (e.target.id === "pPrint") printPunches();
+        if (e.target.id === "pXlsx") punchesXlsx(e.target);
+        if (e.target.id === "rXlsx") reportsXlsx(e.target);
+      });
+      bar.addEventListener("input", function (e) { if (e.target.id === "pQ") { st.pLimit = 300; drawPunches(); } });
+    });
+    $("#pOut").addEventListener("click", function (e) { if (e.target.id === "pMore") { st.pLimit += 300; drawPunches(); } });
+    // more printouts for the week on the Weekly report tab
+    $("#repShell").addEventListener("change", function (e) {
+      if (e.target.id !== "printMore") return;
+      var k = e.target.value; e.target.value = "";
+      doPrint(k, weekData());
+    });
+  }
+
   /* ---------------- events ---------------- */
   function renderAll() { renderReminders(); renderLocPick(); renderLocList(); renderStatus(); renderDeptOptions(); renderReportShell(); renderReportTable(); renderEmpTable(); renderExceptions(); renderPrint(); fillRules(false); }
 
   function bind() {
     window.addEventListener("hashchange", route);
+    bindReports();
     var drop = $("#drop");
     ["dragenter", "dragover"].forEach(function (t) { drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.add("drag"); }); });
     ["dragleave", "drop"].forEach(function (t) { drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.remove("drag"); }); });
