@@ -87,6 +87,22 @@ h2.sec { font: 700 clamp(1.7rem, 4vw, 2.3rem)/1.1 var(--f-display); margin: 0 0 
 .trust li { margin: 6px 0; }
 .notice { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 14px 16px; border-radius: 0 var(--r) var(--r) 0; }
 .notice b { display: block; margin-bottom: 4px; }
+.demo-card { background: var(--head); color: var(--head-ink); border-radius: 10px; padding: 26px; display: grid; grid-template-columns: 1.1fr .9fr; gap: 24px; align-items: center; }
+.demo-card .sub { color: var(--head-muted); }
+.demo-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.demo-list li { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); border-radius: 8px; padding: 10px 12px; color: var(--head-muted); font-size: .93rem; }
+.demo-list b { display: block; color: var(--head-ink); }
+@media (max-width: 820px) { .demo-card { grid-template-columns: 1fr; } }
+.contact-grid { display: grid; grid-template-columns: .9fr 1.1fr; gap: 28px; align-items: start; }
+.cform { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 18px; display: grid; gap: 12px; }
+.cform .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.cform label { display: grid; gap: 4px; font-size: .9rem; font-weight: 600; }
+.cform input, .cform textarea { font: inherit; font-weight: 400; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; width: 100%; }
+.cform input:focus, .cform textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cform .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.cmsg { font-size: .95rem; }
+.cmsg.ok { color: var(--green); font-weight: 600; } .cmsg.err { color: var(--red); }
+@media (max-width: 820px) { .contact-grid, .cform .two { grid-template-columns: 1fr; } }
 footer { padding: 30px 0 40px; color: var(--muted); font-size: .9rem; }
 footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 24px; justify-content: space-between; }
 @media (max-width: 820px) {
@@ -115,7 +131,9 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 24px; justify-content: 
       <p class="lede">Upload the weekly time-clock file. Punch Verification compares each employee's punches with their schedule and your store's break rules, then shows who missed a break, came in early, left late, or went into overtime.</p>
       <div class="cta">
         <a class="btn primary" href="/app/">Sign in</a>
-        <small>For invited store staff only. There is no public sign-up.</small>
+        <a class="btn ghost" href="/demo/">See a live demo</a>
+        <a class="btn ghost" href="#contact">Get it for your business</a>
+        <small>Sign-in is for invited staff only.</small>
       </div>
     </div>
     <div class="sample" aria-label="Example weekly report (sample data)">
@@ -155,6 +173,19 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 24px; justify-content: 
     </div>
   </section>
 
+  <section style="padding-top:0" id="demo">
+    <div class="wrap">
+      <div class="demo-card">
+        <div>
+          <h2 class="sec">Try it with a made-up store</h2>
+          <p class="sub" style="margin-bottom:14px">Open the real program with 15 sample employees and one week of punches, or try it with your own time clock file. See the weekly report, the red early/late marks, overtime, the week grid, schedules and printable cards. No sign-in needed; free for 30 days. Nothing is saved, and Excel download is for real accounts.</p>
+          <a class="btn primary" href="/demo/">Open the demo</a>
+        </div>
+        <ul class="demo-list"><li><b>Weekly report</b> who broke a break rule, worked over schedule, came early or left late</li><li><b>Week grid</b> everyone's punches next to their schedule, ready to print</li><li><b>Fix a punch</b> change times with a reason and print the edits</li><li><b>Schedules</b> each person's hours and printable schedule cards</li></ul>
+      </div>
+    </div>
+  </section>
+
   <section class="trust" id="privacy">
     <div class="wrap trust-grid">
       <div>
@@ -177,12 +208,52 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 24px; justify-content: 
   </section>
 </main>
 
+<section id="contact" style="padding:52px 0">
+  <div class="wrap contact-grid">
+    <div>
+      <h2 class="sec">Want this for your business?</h2>
+      <p class="sub">Punch Verification can be set up for other stores and businesses, each with its own private, encrypted space. Leave your details and we'll get back to you.</p>
+      <ul style="margin:0;padding-left:20px;color:var(--muted)"><li>Your own logins and roles for owners, managers and staff</li><li>Works with the Excel export from your time clock</li><li>Several locations under one account</li></ul>
+    </div>
+    <form class="cform" id="contactForm" novalidate>
+      <div class="two"><label>Your name<input type="text" name="name" autocomplete="name" required maxlength="100"></label>
+      <label>Business name<input type="text" name="business" autocomplete="organization" maxlength="150"></label></div>
+      <div class="two"><label>Email<input type="email" name="email" autocomplete="email" required maxlength="200"></label>
+      <label>Phone (optional)<input type="tel" name="phone" autocomplete="tel" maxlength="40"></label></div>
+      <label>How many stores / employees?<input type="text" name="size" placeholder="e.g. 2 stores, about 60 employees" maxlength="80"></label>
+      <label>Message<textarea name="message" rows="4" maxlength="3000" placeholder="What would you like to know?"></textarea></label>
+      <label class="hp" aria-hidden="true">Website<input type="text" name="website" tabindex="-1" autocomplete="off"></label>
+      <div><button class="btn primary" type="submit" id="cSend">Send</button></div>
+      <p class="cmsg" id="cMsg" role="status"></p>
+    </form>
+  </div>
+</section>
+
 <footer>
   <div class="wrap">
     <span>© <span id="yr">2026</span> Punch Verification · punchverification.com</span>
-    <span><a href="#privacy">Privacy</a> · <a href="/app/">Staff sign in</a></span>
+    <span><a href="/demo/">Demo</a> · <a href="#contact">Contact</a> · <a href="#privacy">Privacy</a> · <a href="/app/">Staff sign in</a></span>
   </div>
 </footer>
-<script>try { document.getElementById("yr").textContent = new Date().getFullYear(); } catch (e) {}</script>
+<script>try { document.getElementById("yr").textContent = new Date().getFullYear(); } catch (e) {}
+(function () {
+  // Messages go to the owner's Gmail through a small Google script (the address isn't shown on the page).
+  var URL = "https://script.google.com/macros/s/AKfycbwOc7kxbqarT258dw4_E8mCug2g7g41GfGeobdr3sf5P0_Qym6pbOBXiojHm5pK01i3/exec";
+  var f = document.getElementById("contactForm"), m = document.getElementById("cMsg"), btn = document.getElementById("cSend");
+  if (!f) return;
+  f.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var d = {}; Array.prototype.forEach.call(f.elements, function (x) { if (x.name) d[x.name] = x.value.trim(); });
+    if (!d.name) { m.className = "cmsg err"; m.textContent = "Please add your name."; f.name.focus(); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email)) { m.className = "cmsg err"; m.textContent = "Please add an email address we can reply to."; f.email.focus(); return; }
+    d.kind = "contact";
+    btn.disabled = true; m.className = "cmsg"; m.textContent = "Sending…";
+    fetch(URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(d) })
+      .then(function () { f.reset(); m.className = "cmsg ok"; m.textContent = "Thank you! Your message was sent. We'll get back to you soon."; })
+      .catch(function () { m.className = "cmsg err"; m.textContent = "Couldn't send right now. Please check your connection and try again."; })
+      .then(function () { btn.disabled = false; });
+  });
+})();
+</script>
 </body>
 </html>

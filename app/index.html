@@ -28,7 +28,10 @@
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-body[data-role="manager"] .owner-only, body[data-role="viewer"] .owner-only, body[data-role="viewer"] .edit-only { display: none !important; }
+body[data-role="manager"] .owner-only, body[data-role="viewer"] .owner-only, body[data-role="viewer"] .edit-only,
+body[data-role="hours"] .owner-only, body[data-role="hours"] .mgr-only, body[data-role="viewer"] .mgr-only { display: none !important; }
+.scope-ed { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: var(--r); background: var(--sunk); }
+.scope-ed .checks { display: flex; flex-wrap: wrap; gap: 4px 14px; }
 body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.45; }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--head); }
 .wrap { max-width: 1180px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
@@ -309,7 +312,7 @@ tr.detail td { background: var(--sunk); padding: 14px 12px 16px; }
 
   <!-- WEEKLY REPORT -->
   <section class="view" id="v-report">
-    <div class="panel upload edit-only" id="drop">
+    <div class="panel upload edit-only mgr-only" id="drop">
       <div>
         <h2>Check a week</h2>
         <p>Drop the week's hours file here, or several weeks at once: your All_Emp workbook (it reads the DEnter tab) or time clock exports, .xlsx or .csv. Each week is checked and saved on its own. The file stays on this computer; only the results are saved.</p>
@@ -335,14 +338,14 @@ tr.detail td { background: var(--sunk); padding: 14px 12px 16px; }
       <button class="btn owner-only" type="button" id="bkSave">Save backup</button>
       <label class="btn owner-only" for="bkLoad">Load backup</label>
       <input type="file" id="bkLoad" accept=".json" hidden>
-      <label class="btn edit-only" for="timeIn">Import from Time tab</label>
+      <label class="btn edit-only mgr-only" for="timeIn">Import from Time tab</label>
       <input type="file" id="timeIn" accept=".xlsx,.xlsm,.xls" hidden>
-      <button class="btn primary edit-only" id="addEmp" type="button">Add employee</button>
+      <button class="btn primary edit-only mgr-only" id="addEmp" type="button">Add employee</button>
     </div>
     <div id="importBox" class="notice info" hidden></div>
     <div id="editor" class="panel editor" hidden></div>
     <div id="remPanel" class="panel" hidden></div>
-    <div id="excPanel" class="panel"></div>
+    <div id="excPanel" class="panel mgr-only"></div>
     <div id="empTable"></div>
   </section>
 
@@ -929,7 +932,11 @@ var Engine = (function () {
   var server = "", user = "", loginKey = "", DK = null;
   var S = {}, coreVer = 0, reports = {}, reportIds = [], files = {}, fileIds = [], subs = [], saving = Promise.resolve(), pendingSaves = 0;
   // Roles. SSNs, pay, birth dates, forms etc. live in a separate locked doc ("sec") that the server only gives to owners.
-  var role = "owner", SEC = {}, secVer = 0;
+  var role = "owner", SEC = {}, secVer = 0, isMaster = false, twoStep = false, backupLeft = 0;
+  // two-step sign-in: a device token the server accepts after a correct 6-digit code
+  var tsess = "", pendingTotp = null;
+  function devKey(u) { return "punchcheck:dev:" + store + ":" + String(u || "").trim().toLowerCase(); }
+  function randHex(n) { return hex(crypto.getRandomValues(new Uint8Array(n))); }
   var SEC_KEYS = ["ssn", "dob", "gender", "depCount", "dependents", "street", "city", "state", "zip", "pay", "payType", "payHistory", "forms", "payNoticeLang",
     "workAuthExp", "papers", "papersExp", "warnings", "timeOff", "sickCarry", "vacAllow", "vacCarry", "endReason", "rehire"];
   function isEmp(p) { var a = p.split("/"); return a.length === 2 && a[0] === "employees"; }
@@ -983,7 +990,10 @@ var Engine = (function () {
     bad: "Something was missing from the request. Reload the page and try again.",
     expired: "This one-time password has expired. Ask the person who invited you to send a new one.",
     missing: "That login no longer exists.",
-    forbidden: "Your login doesn't have permission for that. Ask an owner."
+    forbidden: "Your login doesn't have permission for that. Ask an owner.",
+    totp: "Your two-step sign-in has run out on this device. Sign in again.",
+    totp_bad: "That code isn't right. Check the time on your phone and use the newest code.",
+    exists_master: "This store already has a master login."
   };
   function api(body) {
     return fetch(server, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
@@ -995,8 +1005,8 @@ var Engine = (function () {
       }).then(function (j) { return Array.isArray(j) ? j[0] : j; });
   }
   function authed(body) {
-    return api(Object.assign({ user: user, loginKey: loginKey }, body)).then(function (j) {
-      if (!j || (!j.ok && (j.error === "login" || j.error === "locked"))) { ss(K_SESS, null); screen("login", ERR[j && j.error] || ERR.login); throw { code: "login", message: "Signed out." }; }
+    return api(Object.assign({ user: user, loginKey: loginKey }, tsess ? { tsess: tsess } : {}, body)).then(function (j) {
+      if (!j || (!j.ok && (j.error === "login" || j.error === "locked" || j.error === "totp"))) { ss(K_SESS, null); screen("login", ERR[j && j.error] || ERR.login); throw { code: "login", message: "Signed out." }; }
       return j;
     });
   }
@@ -1067,6 +1077,83 @@ var Engine = (function () {
   }
   function decodeCore(doc) { return doc ? decStr(DK, doc.v).then(function (t) { return JSON.parse(t) || {}; }) : Promise.resolve({}); }
 
+  /* ---------- plain-English description of a change, for the change history ---------- */
+  var PROF_LABEL = { prefName: "preferred name", phone1: "phone 1", phone2: "phone 2", email: "email", position: "position", language: "language", street: "address", city: "address", state: "address", zip: "address",
+    dob: "date of birth", ssn: "SSN", gender: "male/female", depCount: "dependents", ecName: "emergency contact", ecPhone: "emergency contact", ecRel: "emergency contact", uniform: "uniform size",
+    empType: "employment type", payClass: "overtime type", supervisor: "supervisor", availability: "availability", start: "start date", end: "end date", endReason: "end reason", rehire: "rehire",
+    pay: "pay", payType: "pay", payHistory: "pay changes", forms: "required forms", payNoticeLang: "pay notice language", workAuthExp: "work authorization", papers: "working papers", papersExp: "working papers",
+    timeOff: "time off", sickCarry: "sick leave", vacAllow: "vacation", vacCarry: "vacation", warnings: "warnings / write-ups", notes: "notes", files: "documents / photo", dependents: "dependents" };
+  var RULE_LABEL = { maxStretchHours: "max hours in a row", minBreakMin: "minimum break", coffeeBefore: "coffee break before", coffeeMin: "coffee break minutes", dinnerAfter: "dinner after", dinnerMin: "dinner minutes",
+    graceMin: "early/late grace minutes", exempt: "departments skipped for breaks", handoutRules: "rules printed on cards", otOn: "overtime on", otWeeklyAfter: "overtime after hours/week", otDailyOn: "daily overtime on",
+    otDailyAfter: "daily overtime after", otRate: "overtime rate", spreadOn: "spread of hours", minWage: "minimum wage", sickPer: "sick leave per hours", sickCap: "sick leave cap", addrLookup: "address suggestions" };
+  function t12(v) {
+    if (v == null || v === "") return "";
+    var m = typeof v === "number" ? v : (function () { var a = String(v).split(":"); return +a[0] * 60 + (+a[1] || 0); })();
+    m = ((m % 1440) + 1440) % 1440; var h = Math.floor(m / 60), mm = m % 60;
+    return ((h % 12) || 12) + ":" + String(mm).padStart(2, "0") + (h < 12 ? "a" : "p");
+  }
+  function same(a, b) { return JSON.stringify(a == null ? null : a) === JSON.stringify(b == null ? null : b); }
+  function who(v, id) { return (((v && v.first) || "") + " " + ((v && v.last) || "")).trim() + " #" + id; }
+  function dayTxt(x) { return x ? t12(x.from) + "–" + t12(x.till) : "off"; }
+  function segTxt(segs) { return (segs || []).map(function (sg) { return t12(sg[0]) + "–" + t12(sg[1]); }).join(", ") || "none"; }
+  function describe(p, before, after) {
+    try {
+      var id = p.split("/")[1];
+      if (isEmp(p)) {
+        if (!before && after) return "Added employee " + who(after, id) + (after.dept ? " (" + after.dept + ")" : "");
+        if (before && !after) return "Removed employee " + who(before, id);
+        var ch = [];
+        if (!same(before.first, after.first) || !same(before.last, after.last)) ch.push("name " + who(before, id) + " → " + who(after, id));
+        if (!same(before.dept, after.dept)) ch.push("department " + (before.dept || "none") + " → " + (after.dept || "none"));
+        if (!same(before.location || "main", after.location || "main")) ch.push("location changed");
+        if (!same(before.active !== false, after.active !== false)) ch.push(after.active === false ? "made inactive" : "made active");
+        var bd = before.days || {}, ad = after.days || {};
+        ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].forEach(function (d) { if (!same(bd[d], ad[d])) ch.push(d + " schedule " + dayTxt(bd[d]) + " → " + dayTxt(ad[d])); });
+        var bp = before.profile || {}, ap = after.profile || {}, labels = [];
+        Object.keys(Object.assign({}, bp, ap)).forEach(function (k) {
+          var DEF = { empType: "full", payClass: "hourly", payType: "hour" };
+          if (k === "fk" || same(bp[k], ap[k]) || (blank(bp[k]) && blank(ap[k])) || (bp[k] == null && ap[k] === DEF[k])) return;
+          var l = PROF_LABEL[k] || k; if (labels.indexOf(l) < 0) labels.push(l);
+        });
+        if (labels.length) ch.push("profile updated: " + labels.join(", "));
+        return ch.length ? "Employee " + who(after, id) + ": " + ch.join("; ") : null;
+      }
+      if (p === "settings/main") {
+        var base = before || (window.Engine && window.Engine.DEFAULT_SETTINGS) || {};
+        var keys = Object.keys(Object.assign({}, base, after || {})).filter(function (k) { var x = base[k], y = (after || {})[k]; if (y == null) return false; if (!before && typeof y === "object") return false; if (x != null && y != null && typeof x !== "object" && String(x) === String(y)) return false; return !same(x, y) && !(x == null && y == null); });
+        before = base;
+        if (!keys.length) return null;
+        return "Rules changed: " + keys.map(function (k) { var a = (before || {})[k], b2 = (after || {})[k]; return (RULE_LABEL[k] || k) + (typeof b2 === "object" ? "" : " " + (a == null ? "—" : a) + " → " + b2); }).join("; ");
+      }
+      if (p === "settings/locations") {
+        var n1 = ((before && before.list) || []).map(function (l) { return l.name; }).join(", "), n2 = ((after && after.list) || []).map(function (l) { return l.name; }).join(", ");
+        return n1 === n2 ? null : "Locations: " + (n1 || "Main store") + " → " + n2;
+      }
+      if (p.indexOf("exceptions/") === 0) {
+        var x = after || before, nm = x.who === "all" ? "whole store" : (S["employees/" + x.who] ? who(S["employees/" + x.who], x.who) : (x.whoName || "#" + x.who));
+        var rng = x.from + (x.to && x.to !== x.from ? " to " + x.to : "");
+        return (!before ? "Exception added" : !after ? "Exception removed" : "Exception changed") + ": " + nm + ", " + rng + (x.note ? " (" + x.note + ")" : "");
+      }
+      if (isReport(p)) {
+        var rep2 = after || before, names = {};
+        (rep2.people || []).forEach(function (q) { names[q.id] = q.name + " #" + q.id; });
+        if (!after) return "Deleted saved week of " + before.weekStart;
+        if (!before) return "Checked week of " + after.weekStart + (after.fileName ? " (" + after.fileName + ")" : "") + (after.locationName ? " · " + after.locationName : "");
+        var old = {}; (before.days || []).forEach(function (d) { old[d.id + "|" + d.date] = d; });
+        var out = [];
+        (after.days || []).forEach(function (d) {
+          var o = old[d.id + "|" + d.date], n0 = o && o.edits ? o.edits.length : 0, n1 = d.edits ? d.edits.length : 0;
+          if (n1 > n0) { var last = d.edits[n1 - 1]; out.push("Punch times changed for " + (names[d.id] || "#" + d.id) + " on " + d.date + ": " + segTxt(last.from) + " → " + segTxt(last.to) + (last.note ? " (reason: " + last.note + ")" : "")); }
+          else if (o && n0 && !n1 && d.history) out.push("Restored original punch times for " + (names[d.id] || "#" + d.id) + " on " + d.date);
+        });
+        if (out.length) return out.join("\n");
+        return before.runAt !== after.runAt ? "Re-checked week of " + after.weekStart + (after.fileName ? " (" + after.fileName + ")" : "") : null;
+      }
+    } catch (e) { return null; }
+    return null;
+  }
+  function logged(pr, text) { return text ? pr.then(function (r) { logChange(text); return r; }) : pr; }
+
   function dref(p) {
     return {
       id: p.split("/").pop(), path: p,
@@ -1085,6 +1172,13 @@ var Engine = (function () {
         });
       },
       set: function (v) {
+        if (!isFile(p) && p.indexOf("reportIndex/") !== 0) {
+          var before = isReport(p) ? reports[p] : isEmp(p) ? merged(p) : clone(S[p]);
+          return logged(this._set(v), describe(p, before, v));
+        }
+        return this._set(v);
+      },
+      _set: function (v) {
         if (isFile(p)) {
           files[p] = clone(v); var fid = p.slice(6); if (fileIds.indexOf(fid) < 0) fileIds.push(fid);
           pendingSaves++;
@@ -1107,6 +1201,13 @@ var Engine = (function () {
       },
       update: function (v) { var cur = isReport(p) ? reports[p] : isEmp(p) ? merged(p) : S[p]; return this.set(Object.assign({}, cur || {}, v)); },
       delete: function () {
+        if (!isFile(p) && p.indexOf("reportIndex/") !== 0) {
+          var before = isReport(p) ? reports[p] : isEmp(p) ? merged(p) : clone(S[p]);
+          if (before) return logged(this._del(), describe(p, before, null));
+        }
+        return this._del();
+      },
+      _del: function () {
         if (isFile(p)) { delete files[p]; fileIds = fileIds.filter(function (x) { return x !== p.slice(6); }); return authed({ action: "del", key: "f:" + p.slice(6) }).then(function () {}); }
         if (isReport(p)) { delete reports[p]; reportIds = reportIds.filter(function (x) { return x !== p.slice(8); }); return authed({ action: "del", key: "r:" + p.slice(8) }).then(function () {}); }
         var op = { p: p, del: true }; applyOp(op);
@@ -1152,7 +1253,7 @@ var Engine = (function () {
       if (!j.ok) throw fail(j);
       reportIds = j.reports || [];
       fileIds = j.files || Object.keys(j.docs || {}).filter(function (k) { return k.indexOf("f:") === 0; }).map(function (k) { return k.slice(2); });
-      role = j.role || "owner"; window.punchRole = role;
+      role = j.role || "owner"; window.punchRole = role; window.punchScope = j.scope || { locs: [], depts: [] }; isMaster = !!j.master; twoStep = !!j.twoStep; backupLeft = j.backupLeft || 0;
       if (document.body) document.body.setAttribute("data-role", role);
       var core = j.docs && j.docs.core, sec = j.docs && j.docs.sec;
       coreVer = core ? core.ver : 0; secVer = sec ? sec.ver : 0;
@@ -1224,6 +1325,13 @@ var Engine = (function () {
         "<label class=\"field\">Type it again<input type=\"password\" id=\"lkPw2\" autocomplete=\"new-password\" required></label>" +
         "<p style=\"font-size:.85rem\">Use at least 8 characters and write it down. Nobody can recover it for you.</p>" +
         "<div class=\"row\"><button class=\"btn primary\" type=\"submit\" id=\"lkGo\">Save password</button>" + m + "</div></form>";
+    } else if (mode === "totp") {
+      h = "<form class=\"box\" id=\"totpForm\">" + head("Two-step sign-in") +
+        "<p>Open your authenticator app (Google Authenticator, Microsoft Authenticator…) and type the 6-digit code for Punch Verification. Lost your phone? Type one of your backup codes.</p>" +
+        "<label class=\"field\">Code<input type=\"text\" id=\"lkCode2\" inputmode=\"numeric\" autocomplete=\"one-time-code\" maxlength=\"14\" required></label>" +
+        "<label class=\"check\"><input type=\"checkbox\" id=\"lkRemember\" checked> Remember this device for 30 days</label>" +
+        "<div class=\"row\"><button class=\"btn primary\" type=\"submit\" id=\"lkGo\">Continue</button>" + m + "</div>" +
+        "<button class=\"link\" type=\"button\" id=\"lkBack\">Back to sign in</button></form>";
     } else if (mode === "forgot") {
       h = "<div class=\"box\">" + head("Forgot your password?") +
         "<p>Your data is locked with your password, so it can't be reset from here.</p>" +
@@ -1247,7 +1355,7 @@ var Engine = (function () {
   function finishSignIn(pwForMigration) {
     ss(K_SESS, null);
     return crypto.subtle.exportKey("raw", DK).then(function (raw) {
-      ss(K_SESS, JSON.stringify({ server: server, user: user, loginKey: loginKey, dk: b64(raw) }));
+      ss(K_SESS, JSON.stringify({ server: server, user: user, loginKey: loginKey, dk: b64(raw), tsess: tsess }));
       return loadAll();
     }).then(function () { return pwForMigration != null ? migrateLocal(pwForMigration) : null; }).then(function () {
       if (role !== "owner") return;
@@ -1258,6 +1366,7 @@ var Engine = (function () {
     }).then(function () {
       var ov = document.getElementById("lock"); if (ov) { ov.hidden = true; ov.innerHTML = ""; }
       window.punchUser = user;
+      if (pwForMigration != null) logChange("Signed in");
       addBar(); addLoginsUI();
       fire(); resolveReady();
     });
@@ -1363,18 +1472,39 @@ var Engine = (function () {
         return deriveAll(u, pw, j.salt);
       }).then(function (k) {
         user = u; loginKey = k.loginKey;
-        return api({ action: "list", user: u, loginKey: k.loginKey }).then(function (j) {
+        var dev = ls(devKey(u)) || "";
+        return api({ action: "list", user: u, loginKey: k.loginKey, tsess: dev || undefined }).then(function (j) {
+          if (!j.ok && j.error === "totp") { pendingTotp = { k: k, u: u, pw: pw }; screen("totp"); throw { silent: true, keep: true }; }
           if (!j.ok) throw fail(j);
-          user = j.name || u;
-          return unwrapDK(k.kek, j.wrappedKey).then(function (dk) { return { dk: dk, mustChange: j.mustChange }; });
+          tsess = j.tsess || "";
+          return afterList(j, k, u, pw);
         });
-      }).then(function (r) {
-        DK = r.dk; ls(K_STORE, store);
-        if (r.mustChange) { screen("mustchange"); throw { silent: true, keep: true }; }
-        return finishSignIn(pw);
       })
         .catch(function (er) { if (er && er.keep) return; user = ""; loginKey = ""; DK = null; if (er && er.silent) return; busy(false, er.message || ERR.login); });
     }
+  });
+  function afterList(j, k, u, pw) {
+    user = j.name || u;
+    return unwrapDK(k.kek, j.wrappedKey).then(function (dk) {
+      DK = dk; ls(K_STORE, store);
+      if (j.mustChange) { screen("mustchange"); throw { silent: true, keep: true }; }
+      return finishSignIn(pw);
+    });
+  }
+  document.addEventListener("submit", function (e) {
+    var f = e.target; if (!f || f.id !== "totpForm") return;
+    e.preventDefault();
+    var p = pendingTotp; if (!p) { screen("login"); return; }
+    var code = (document.getElementById("lkCode2").value || "").trim(), remember = document.getElementById("lkRemember").checked;
+    if (!code) { busy(false, "Enter the 6-digit code from your phone app."); return; }
+    busy(true, "Checking…");
+    var nt = randHex(24);
+    api({ action: "list", user: p.u, loginKey: p.k.loginKey, totp: code, newTsess: nt, remember: remember }).then(function (j) {
+      if (!j.ok) throw fail(j);
+      tsess = nt; if (remember) ls(devKey(p.u), nt);
+      pendingTotp = null;
+      return afterList(j, p.k, p.u, p.pw);
+    }).catch(function (er) { if (er && er.keep) return; busy(false, (er && er.message) || ERR.totp_bad); });
   });
   document.addEventListener("click", function (e) {
     var id = e.target && e.target.id;
@@ -1426,15 +1556,21 @@ var Engine = (function () {
   function addLoginsUI() {
     if (document.getElementById("loginsBox")) return;
     var form = document.getElementById("rulesForm"); if (!form) return;
-    var box = el("<section class=\"rules-form logins\" id=\"loginsBox\" style=\"margin-top:28px\">" + (role !== "owner" ? "<p class=\"muted\">Signed in as <b>" + esc(user) + "</b> · " + ROLE_NAME[role] + ". " + ROLE_HELP[role] + "</p>" : "<fieldset><legend>Logins</legend>" +
+    var box = el("<section class=\"rules-form logins\" id=\"loginsBox\" style=\"margin-top:28px\">" + (role !== "owner" ? "<p class=\"muted\">Signed in as <b>" + esc(user) + "</b> · " + ROLE_NAME[role] + ". " + (role === "hours" ? "You can change schedule hours and fix punch times for: " + esc(scopeTxt(window.punchScope)) + "." : ROLE_HELP[role]) + "</p>" : "<fieldset><legend>Logins</legend>" +
       "<p class=\"muted\" style=\"font-size:.88rem\">New logins get a one-time password by email and choose their own password when they first sign in. " +
-      "<b>Owner</b>: " + ROLE_HELP.owner + " <b>Manager</b>: " + ROLE_HELP.manager + " <b>Viewer</b>: " + ROLE_HELP.viewer + "</p>" +
+      "<b>Owner</b>: " + ROLE_HELP.owner + " <b>Manager</b>: " + ROLE_HELP.manager + " <b>Hours only</b>: " + ROLE_HELP.hours + " <b>Viewer</b>: " + ROLE_HELP.viewer + "</p>" +
+      "<div id=\"masterBox\"></div>" +
       "<ul id=\"lgList\"><li class=\"muted\">Loading…</li></ul>" +
       "<form id=\"lgAdd\" class=\"grid3\" novalidate><label class=\"field\">New username<input type=\"text\" id=\"lgUser\" autocomplete=\"off\"></label>" +
       "<label class=\"field\">Their email<input type=\"email\" id=\"lgEmail\" autocomplete=\"off\" placeholder=\"name@example.com\"></label>" +
-      "<label class=\"field\">Role<select id=\"lgRole\"><option value=\"manager\">Manager</option><option value=\"viewer\">Viewer</option><option value=\"owner\">Owner</option></select></label>" +
+      "<label class=\"field\">Role<select id=\"lgRole\"><option value=\"manager\">Manager</option><option value=\"hours\">Hours only</option><option value=\"viewer\">Viewer</option><option value=\"owner\">Owner</option></select></label>" +
+      "<div id=\"lgScope\" style=\"grid-column:1/-1\" hidden></div>" +
       "<div class=\"toolbar\" style=\"grid-column:1/-1\"><button class=\"btn\" type=\"submit\">Send invite</button><span class=\"msg\" id=\"lgMsg\"></span></div></form>" +
       "<div id=\"inviteBox\" class=\"notice info\" hidden></div></fieldset>") +
+      "<fieldset id=\"tsBox\"><legend>Two-step sign-in</legend><div id=\"tsBody\"></div></fieldset>" +
+      (role === "owner" ? "<fieldset><legend>Change history</legend><p class=\"muted\" style=\"font-size:.86rem\">Who changed what and when: schedules, profiles, punch times, rules, locations, logins and sign-ins. Only owners can see it.</p>" +
+        "<div class=\"toolbar\"><button class=\"btn small\" type=\"button\" id=\"logShow\">Show changes</button><input type=\"search\" id=\"logQ\" placeholder=\"Filter by name, user or word\" hidden style=\"flex:1;min-width:180px\"></div>" +
+        "<div id=\"logList\"></div></fieldset>" : "") +
       "<fieldset><legend>Change my password</legend><form id=\"lgPwForm\" class=\"grid3\" novalidate>" +
       "<label class=\"field\">New password<input type=\"password\" id=\"cpPw\" autocomplete=\"new-password\"></label>" +
       "<label class=\"field\">New password again<input type=\"password\" id=\"cpPw2\" autocomplete=\"new-password\"></label>" +
@@ -1444,22 +1580,56 @@ var Engine = (function () {
       "</select> with no activity. <span class=\"msg\" id=\"alMsg\"></span></p><p class=\"muted\" style=\"font-size:.86rem\">This setting is for this device only. Unsaved changes are lost when it locks, so save as you go.</p></fieldset></section>");
     form.parentNode.insertBefore(box, form.nextSibling);
     if (role === "owner") refreshLogins();
+    renderTwoStep();
   }
-  var ROLE_NAME = { owner: "Owner", manager: "Manager", viewer: "Viewer" };
+  var ROLE_NAME = { owner: "Owner", manager: "Manager", hours: "Hours only", viewer: "Viewer" };
+  var ROLE_KEYS = ["owner", "manager", "hours", "viewer"];
+  // departments + locations come from the page
+  function lists() { try { return window.punchLists ? window.punchLists() : { locs: [], depts: [] }; } catch (e) { return { locs: [], depts: [] }; } }
+  function scopeHtml(sc, id) {
+    sc = sc || {}; var L = lists();
+    function boxes(kind, items, chosen) {
+      return items.map(function (it) {
+        var v = typeof it === "string" ? it : it.id, label = typeof it === "string" ? it : it.name;
+        return "<label class=\"check\"><input type=\"checkbox\" data-scope-" + kind + " value=\"" + esc(v) + "\"" + ((chosen || []).indexOf(v) >= 0 ? " checked" : "") + "> " + esc(label) + "</label>";
+      }).join("");
+    }
+    return "<div class=\"scope-ed\" data-scope-for=\"" + esc(id) + "\"><p class=\"muted\" style=\"font-size:.85rem;margin:0\">Which people can they see and change? Tick departments and/or locations. Nothing ticked in a row = all of them.</p>" +
+      (L.locs.length > 1 ? "<div><b style=\"font-size:.85rem\">Locations</b><div class=\"checks\">" + boxes("loc", L.locs, sc.locs) + "</div></div>" : "") +
+      "<div><b style=\"font-size:.85rem\">Departments</b><div class=\"checks\">" + boxes("dept", L.depts, sc.depts) + "</div></div></div>";
+  }
+  function readScope(box) {
+    if (!box) return { locs: [], depts: [] };
+    return { locs: Array.prototype.map.call(box.querySelectorAll("[data-scope-loc]:checked"), function (x) { return x.value; }),
+      depts: Array.prototype.map.call(box.querySelectorAll("[data-scope-dept]:checked"), function (x) { return x.value; }) };
+  }
+  function scopeTxt(sc) {
+    var L = lists(), parts = [];
+    if (sc && sc.locs && sc.locs.length) parts.push(sc.locs.map(function (id) { var l = L.locs.filter(function (x) { return x.id === id; })[0]; return l ? l.name : id; }).join(", "));
+    if (sc && sc.depts && sc.depts.length) parts.push(sc.depts.join(", "));
+    return parts.length ? parts.join(" · ") : "everyone";
+  }
   var ROLE_HELP = {
     owner: "everything, including SSNs, pay, documents, rules and logins.",
     manager: "weekly reports, schedules, punch edits and printing. No SSNs, pay or documents; can't change rules or logins.",
+    hours: "only the departments/locations you pick: can change their schedule hours and fix punch times. Nothing else.",
     viewer: "can look at reports and schedules and print them. Can't change anything."
   };
   function refreshLogins() {
     authed({ action: "users" }).then(function (j) {
       var list = document.getElementById("lgList"); if (!list || !j.ok) return;
+      var mb = document.getElementById("masterBox");
+      if (mb) mb.innerHTML = isMaster ? "<p class=\"notice info\" style=\"margin:0 0 8px\"><span><b>You are the master login.</b> Nobody else can see this login in the list, reset its password, change its role or remove it.</span></p>"
+        : (!j.hasMaster ? "<p style=\"margin:0 0 8px\"><button class=\"btn small\" type=\"button\" id=\"claimMaster\">Make me the master login</button> <span class=\"muted\" style=\"font-size:.85rem\">A hidden login nobody else can see, reset, change or remove. Only one per store; can't be undone from here.</span></p>" : "");
       list.innerHTML = j.users.map(function (u) {
         var me = u.name.toLowerCase() === user.toLowerCase();
         var expired = u.pending && Date.now() - Date.parse(u.created) > 72 * 3600 * 1000;
         var r = u.role || "owner";
         return "<li><b>" + esc(u.name) + "</b>" + (me ? " <span class=\"chip blue\">You · " + ROLE_NAME[r] + "</span>" :
-          " <select data-role-for=\"" + esc(u.name) + "\" aria-label=\"Role for " + esc(u.name) + "\">" + ["owner", "manager", "viewer"].map(function (x) { return "<option value=\"" + x + "\"" + (x === r ? " selected" : "") + ">" + ROLE_NAME[x] + "</option>"; }).join("") + "</select>") +
+          " <select data-role-for=\"" + esc(u.name) + "\" aria-label=\"Role for " + esc(u.name) + "\">" + ROLE_KEYS.map(function (x) { return "<option value=\"" + x + "\"" + (x === r ? " selected" : "") + ">" + ROLE_NAME[x] + "</option>"; }).join("") + "</select>") +
+          (u.twoStep ? " <span class=\"chip green\">2-step</span>" : "") +
+          (u.twoStep && !me ? " <button class=\"btn small\" type=\"button\" data-totp-reset=\"" + esc(u.name) + "\" title=\"Use this if they lost their phone\">Turn off 2-step</button>" : "") +
+          (r === "hours" && !me ? " <span class=\"muted\" style=\"font-size:.85rem\">Can change: " + esc(scopeTxt(u.scope)) + "</span> <button class=\"btn small\" type=\"button\" data-scope-edit=\"" + esc(u.name) + "\" data-scope='" + esc(JSON.stringify(u.scope || {})) + "'>Change access</button>" : "") +
           (u.pending ? " <span class=\"chip " + (expired ? "red" : "amber") + "\">" + (expired ? "Invite expired" : "Invite pending") + "</span>" : "") +
           (u.email ? " <span class=\"muted\" style=\"font-size:.85rem\">" + esc(u.email) + "</span>" : "") +
           "<span class=\"muted\" style=\"font-size:.85rem;margin-left:auto\">" + (u.pending ? "invited " : "added ") + esc(new Date(u.created).toLocaleDateString()) + "</span>" +
@@ -1477,7 +1647,8 @@ var Engine = (function () {
       if (!/^[A-Za-z0-9 ._@-]{2,60}$/.test(n)) return msg("lgMsg", "Enter a username (letters and numbers).", true);
       if (em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) return msg("lgMsg", "That email address doesn't look right.", true);
       msg("lgMsg", "Creating login…");
-      invite(n, em, false, (document.getElementById("lgRole") || {}).value || "manager").then(function () { f.reset(); }).catch(function (er) { msg("lgMsg", er.message, true); });
+      var nr = (document.getElementById("lgRole") || {}).value || "manager";
+      invite(n, em, false, nr, nr === "hours" ? readScope(document.querySelector("#lgScope .scope-ed")) : null).then(function () { f.reset(); var sb = document.getElementById("lgScope"); if (sb) sb.hidden = true; }).catch(function (er) { msg("lgMsg", er.message, true); });
     }
     if (f && f.id === "lgPwForm") {
       e.preventDefault();
@@ -1491,13 +1662,15 @@ var Engine = (function () {
       }).then(function (j) {
         if (!j.ok) throw fail(j);
         loginKey = k2.loginKey;
-        return crypto.subtle.exportKey("raw", DK).then(function (raw) { ss(K_SESS, JSON.stringify({ server: server, user: user, loginKey: loginKey, dk: b64(raw) })); });
+        return crypto.subtle.exportKey("raw", DK).then(function (raw) { ss(K_SESS, JSON.stringify({ server: server, user: user, loginKey: loginKey, dk: b64(raw), tsess: tsess })); });
       }).then(function () { f.reset(); msg("cpMsg", "Password changed. Use the new one next time you sign in."); })
         .catch(function (er) { msg("cpMsg", er.message, true); });
     }
   });
   document.addEventListener("change", function (e) {
+    if (e.target && e.target.id === "lgRole") { var sb = document.getElementById("lgScope"); sb.hidden = e.target.value !== "hours"; if (!sb.hidden) sb.innerHTML = scopeHtml({}, "new"); return; }
     var rs = e.target && e.target.closest && e.target.closest("[data-role-for]");
+    if (rs && rs.value === "hours") { openScopeEditor(rs.closest("li"), rs.dataset.roleFor, {}); return; }
     if (rs) {
       rs.disabled = true;
       authed({ action: "setRole", name: rs.dataset.roleFor, role: rs.value }).then(function (j) {
@@ -1514,11 +1687,145 @@ var Engine = (function () {
     return o.slice(0, 5) + "-" + o.slice(5);
   }
   function inviteBox(html) { var b = document.getElementById("inviteBox"); if (b) { b.hidden = false; b.innerHTML = html; } }
-  function invite(name, email, isReset, newRole) {
+  /* ---------- two-step sign-in settings ---------- */
+  var tsSetup = null;
+  function b32enc(bytes) {
+    var A = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567", out = "", bits = 0, val = 0;
+    for (var i = 0; i < bytes.length; i++) { val = (val << 8) | bytes[i]; bits += 8; while (bits >= 5) { out += A[(val >>> (bits - 5)) & 31]; bits -= 5; } }
+    if (bits > 0) out += A[(val << (5 - bits)) & 31];
+    return out;
+  }
+  function loadQR() {
+    if (window.qrcode) return Promise.resolve(window.qrcode);
+    return new Promise(function (res, rej) { var sc = document.createElement("script"); sc.src = "https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"; sc.onload = function () { window.qrcode ? res(window.qrcode) : rej(); }; sc.onerror = rej; document.head.appendChild(sc); });
+  }
+  function renderTwoStep() {
+    var el2 = document.getElementById("tsBody"); if (!el2) return;
+    if (tsSetup) {
+      var uri = "otpauth://totp/" + encodeURIComponent("Punch Verification:" + user) + "?secret=" + tsSetup.secret + "&issuer=" + encodeURIComponent("Punch Verification");
+      el2.innerHTML = "<ol style=\"margin:0;padding-left:20px;font-size:.92rem;display:grid;gap:6px\"><li>Install <b>Google Authenticator</b> or <b>Microsoft Authenticator</b> on your phone.</li>" +
+        "<li>In the app tap <b>+</b> and scan this code:<div id=\"tsQR\" style=\"margin:8px 0;background:#fff;display:inline-block;padding:8px;border-radius:6px\"><span class=\"muted\">Loading…</span></div>" +
+        "<div class=\"muted\" style=\"font-size:.84rem\">Can't scan? Choose \"Enter a setup key\" and type: <b class=\"mono\" style=\"letter-spacing:.06em\">" + tsSetup.secret.replace(/(.{4})/g, "$1 ").trim() + "</b></div></li>" +
+        "<li>Type the 6-digit code the app shows:</li></ol>" +
+        "<div class=\"toolbar\" style=\"margin-top:6px\"><input type=\"text\" id=\"tsCode\" inputmode=\"numeric\" maxlength=\"7\" placeholder=\"123456\" style=\"width:120px\"><button class=\"btn small primary\" type=\"button\" id=\"tsConfirm\">Turn on</button><button class=\"btn small\" type=\"button\" id=\"tsCancel\">Cancel</button><span class=\"msg\" id=\"tsMsg\"></span></div>";
+      loadQR().then(function (qr) { var q = qr(0, "M"); q.addData(uri); q.make(); var box = document.getElementById("tsQR"); if (box) box.innerHTML = q.createSvgTag(4, 0); })
+        .catch(function () { var box = document.getElementById("tsQR"); if (box) box.innerHTML = "<span class=\"muted\">The picture couldn't load. Use the setup key below.</span>"; });
+      return;
+    }
+    if (twoStep) {
+      el2.innerHTML = "<p><span class=\"chip green\">On</span> After your password, you also enter a code from your phone. " + (backupLeft ? "You have " + backupLeft + " backup code" + (backupLeft === 1 ? "" : "s") + " left." : "<b>You have no backup codes left</b>: turn two-step off and on again to get new ones.") + "</p>" +
+        "<div class=\"toolbar\"><input type=\"text\" id=\"tsOffCode\" inputmode=\"numeric\" maxlength=\"7\" placeholder=\"Code from app\" style=\"width:140px\"><button class=\"btn small\" type=\"button\" id=\"tsOff\">Turn off two-step</button><span class=\"msg\" id=\"tsMsg\"></span></div>";
+      return;
+    }
+    el2.innerHTML = (role === "owner" ? "<div class=\"notice warn\" style=\"margin-bottom:8px\"><span><b>Recommended for owners.</b> Someone who learns your password still can't sign in without your phone.</span></div>" : "") +
+      "<p class=\"muted\" style=\"font-size:.88rem\">Off. When it's on, signing in asks for your password plus a 6-digit code from an app on your phone. You can let a device skip the code for 30 days.</p>" +
+      "<div class=\"toolbar\"><button class=\"btn small primary\" type=\"button\" id=\"tsStart\">Turn on two-step sign-in</button><span class=\"msg\" id=\"tsMsg\"></span></div>";
+  }
+  function backupCodes() {
+    var A = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789", out = [];
+    for (var n = 0; n < 8; n++) { var r = crypto.getRandomValues(new Uint8Array(10)), c = ""; for (var i = 0; i < 10; i++) c += A[r[i] % A.length]; out.push(c); }
+    return out;
+  }
+  document.addEventListener("click", function (e) {
+    var id = e.target && e.target.id;
+    if (id === "tsStart") { tsSetup = { secret: b32enc(crypto.getRandomValues(new Uint8Array(20))) }; renderTwoStep(); var c = document.getElementById("tsCode"); if (c) c.focus(); }
+    if (id === "tsCancel") { tsSetup = null; renderTwoStep(); }
+    if (id === "tsConfirm" && tsSetup) {
+      var code = document.getElementById("tsCode").value.replace(/\D/g, ""), codes = backupCodes(), nt = randHex(24);
+      if (code.length !== 6) return msg("tsMsg", "Type the 6-digit code from the app.", true);
+      msg("tsMsg", "Checking…");
+      authed({ action: "totpEnable", secret: tsSetup.secret, code: code, backup: codes, newTsess: nt }).then(function (j) {
+        if (!j.ok) throw fail(j);
+        tsess = nt; ls(devKey(user), nt); twoStep = true; backupLeft = codes.length; tsSetup = null;
+        return crypto.subtle.exportKey("raw", DK).then(function (raw) { ss(K_SESS, JSON.stringify({ server: server, user: user, loginKey: loginKey, dk: b64(raw), tsess: tsess })); });
+      }).then(function () {
+        renderTwoStep();
+        var el2 = document.getElementById("tsBody");
+        el2.insertAdjacentHTML("afterbegin", "<div class=\"notice info\" style=\"margin-bottom:8px;display:block\"><b>Two-step is on. Save these backup codes</b> (print them or keep them somewhere safe, not on your phone). Each works once if you lose your phone:<div class=\"mono\" style=\"display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:4px;margin:8px 0;font-size:1rem\">" +
+          codes.map(function (c) { return "<b>" + c + "</b>"; }).join("") + "</div><button class=\"btn small\" type=\"button\" data-copy=\"" + codes.join(" ") + "\">Copy codes</button></div>");
+      }).catch(function (er) { msg("tsMsg", (er && er.message) || "Couldn't turn it on.", true); });
+    }
+    if (id === "tsOff") {
+      var oc = document.getElementById("tsOffCode").value.replace(/\D/g, "");
+      if (oc.length !== 6) return msg("tsMsg", "Type the current 6-digit code from your app.", true);
+      authed({ action: "totpDisable", code: oc }).then(function (j) { if (!j.ok) throw fail(j); twoStep = false; ls(devKey(user), null); renderTwoStep(); msg("tsMsg", "Two-step sign-in is off."); })
+        .catch(function (er) { msg("tsMsg", (er && er.message) || "Couldn't turn it off.", true); });
+    }
+    var rt = e.target && e.target.closest && e.target.closest("[data-totp-reset]");
+    if (rt) {
+      if (rt.dataset.confirm !== "1") { rt.dataset.confirm = "1"; rt.textContent = "Click again to turn off"; return; }
+      authed({ action: "resetTotp", name: rt.dataset.totpReset }).then(function (j) { if (!j.ok) throw fail(j); msg("lgMsg", "Two-step sign-in is off for " + rt.dataset.totpReset + ". They can turn it on again with their new phone."); refreshLogins(); })
+        .catch(function (er) { msg("lgMsg", er.message, true); });
+    }
+  });
+
+  /* ---------- change history ---------- */
+  var logItems = [], logFrom = null;
+  function logChange(text) {
+    if (!text || !DK) return;
+    encStr(DK, text.slice(0, 1500)).then(function (enc) { return authed({ action: "logAdd", e: enc }); }).catch(function () {});
+  }
+  window.punchLog = logChange;
+  function loadLog(more) {
+    var req = { action: "getLog" }; if (more && logFrom != null) req.before = logFrom;
+    return authed(req).then(function (j) {
+      if (!j.ok) throw fail(j);
+      logFrom = j.from;
+      return Promise.all(j.items.map(function (it) {
+        return (it.e ? decStr(DK, it.e).catch(function () { return "(couldn't read this entry)"; }) : Promise.resolve(it.s || "")).then(function (t) { return { t: it.t, by: it.by, text: t }; });
+      }));
+    }).then(function (items) { logItems = more ? logItems.concat(items.reverse()) : items.reverse(); renderLog(); })
+      .catch(function (er) { var l = document.getElementById("logList"); if (l) l.innerHTML = "<p class=\"msg err\">" + esc(er.message) + "</p>"; });
+  }
+  function renderLog() {
+    var l = document.getElementById("logList"); if (!l) return;
+    var q = ((document.getElementById("logQ") || {}).value || "").toLowerCase();
+    var rows = logItems.filter(function (x) { return !q || (x.by + " " + x.text).toLowerCase().indexOf(q) >= 0; });
+    l.innerHTML = (rows.length ? "<div class=\"tbl-wrap\" style=\"margin-top:8px;max-height:480px;overflow:auto\"><table><thead><tr><th>When</th><th>Who</th><th>What changed</th></tr></thead><tbody>" +
+      rows.map(function (x) { return "<tr><td style=\"white-space:nowrap\">" + esc(new Date(x.t).toLocaleString([], { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })) + "</td><td>" + esc(x.by) + "</td><td style=\"white-space:pre-line\">" + esc(x.text) + "</td></tr>"; }).join("") +
+      "</tbody></table></div>" : "<p class=\"muted\">Nothing recorded yet.</p>") +
+      (logFrom > 0 ? "<button class=\"btn small\" type=\"button\" id=\"logMore\" style=\"margin-top:6px\">Show older</button>" : "");
+  }
+  document.addEventListener("click", function (e) {
+    var id = e.target && e.target.id;
+    if (id === "logShow") { e.target.textContent = "Refresh"; var q = document.getElementById("logQ"); if (q) q.hidden = false; document.getElementById("logList").innerHTML = "<p class=\"muted\">Loading…</p>"; loadLog(false); }
+    if (id === "logMore") loadLog(true);
+  });
+  document.addEventListener("input", function (e) { if (e.target && e.target.id === "logQ") renderLog(); });
+
+  function openScopeEditor(li, name, sc) {
+    var old = document.querySelector(".scope-wrap"); if (old) old.remove();
+    var w = el("<div class=\"scope-wrap\" style=\"flex-basis:100%;padding:8px 0\">" + scopeHtml(sc, name) +
+      "<div class=\"toolbar\"><button class=\"btn small primary\" type=\"button\" data-scope-save=\"" + esc(name) + "\">Save access</button><button class=\"btn small\" type=\"button\" data-scope-cancel>Cancel</button></div></div>");
+    li.style.flexWrap = "wrap"; li.appendChild(w);
+  }
+  document.addEventListener("click", function (e) {
+    var t = e.target;
+    if (t && t.id === "claimMaster") {
+      if (t.dataset.confirm !== "1") { t.dataset.confirm = "1"; t.textContent = "Click again: make " + user + " the master"; return; }
+      t.disabled = true;
+      authed({ action: "claimMaster" }).then(function (j) { if (!j.ok) throw fail(j); isMaster = true; msg("lgMsg", "You are now the master login."); refreshLogins(); })
+        .catch(function (er) { msg("lgMsg", er.message, true); t.disabled = false; });
+      return;
+    }
+    var ed = t && t.closest && t.closest("[data-scope-edit]");
+    if (ed) { var sc = {}; try { sc = JSON.parse(ed.dataset.scope || "{}"); } catch (x) {} openScopeEditor(ed.closest("li"), ed.dataset.scopeEdit, sc); return; }
+    if (t && t.closest && t.closest("[data-scope-cancel]")) { refreshLogins(); return; }
+    var sv = t && t.closest && t.closest("[data-scope-save]");
+    if (sv) {
+      var scope = readScope(sv.closest(".scope-wrap").querySelector(".scope-ed"));
+      sv.disabled = true;
+      authed({ action: "setRole", name: sv.dataset.scopeSave, role: "hours", scope: scope }).then(function (j) {
+        if (!j.ok) throw fail(j);
+        msg("lgMsg", sv.dataset.scopeSave + " can now change hours for: " + scopeTxt(scope) + ". It applies the next time they sign in."); refreshLogins();
+      }).catch(function (er) { msg("lgMsg", er.message, true); sv.disabled = false; });
+    }
+  });
+  function invite(name, email, isReset, newRole, newScope) {
     var temp = tempPassword(), salt = newSalt(), keys;
     return deriveAll(name, temp, salt).then(function (k) { keys = k; return wrapDK(k.kek); }).then(function (w) {
       var body = { name: name, salt: salt, newLoginKey: keys.loginKey, wrappedKey: w, email: email };
-      return authed(isReset ? Object.assign({ action: "resetUser" }, body) : Object.assign({ action: "addUser", mustChange: true, role: newRole || "manager" }, body));
+      return authed(isReset ? Object.assign({ action: "resetUser" }, body) : Object.assign({ action: "addUser", mustChange: true, role: newRole || "manager", scope: newScope || undefined }, body));
     }).then(function (j) {
       if (!j.ok) throw j.error === "exists" ? { message: "That username is taken." } : fail(j);
       refreshLogins();
@@ -1646,7 +1953,7 @@ var Engine = (function () {
     server = storeUrl(store);
     var sess = null; try { sess = JSON.parse(ss(K_SESS) || "null"); } catch (e) {}
     if (sess && sess.server === server && sess.dk) {
-      user = sess.user; loginKey = sess.loginKey;
+      user = sess.user; loginKey = sess.loginKey; tsess = sess.tsess || "";
       crypto.subtle.importKey("raw", unb64(sess.dk), { name: "AES-GCM" }, true, ["encrypt", "decrypt"]).then(function (dk) { DK = dk; return finishSignIn(null); })
         .catch(function () { ss(K_SESS, null); screen("login"); });
       return;
@@ -1999,6 +2306,7 @@ var Engine = (function () {
       return;
     }
     otSync(r);
+    r = viewReport(r);
     var T = r.totals, OS = Object.assign({}, E.DEFAULT_SETTINGS, st.settings);
     var rk = reportKey(r);
     var savedOpts = st.index.filter(function (i) { return idxInLoc(i) || idxKey(i) === rk; }).map(function (i) {
@@ -2016,11 +2324,11 @@ var Engine = (function () {
 
     var notes = "";
     if (r.duplicates) notes += "<div class=\"notice warn\"><span><b>" + plural(r.duplicates, "punch was", "punches were") + " in the file twice</b> (the week was probably pasted into DEnter two times). Each punch is counted once here, but your Excel Each day tab will show double hours.</span></div>";
-    if (r.notInSchedule.length && st.dbState === "ok") {
+    if (r.notInSchedule.length && st.dbState === "ok" && !scope()) {
       notes += "<div class=\"notice info\"><span><b>Not on the schedule:</b> " + r.notInSchedule.map(function (p) {
         return esc(p.name) + " <span class=\"idtag\">#" + esc(p.id) + "</span>";
       }).join(", ") + ". Their schedule wasn't checked.</span>" + r.notInSchedule.map(function (p) {
-        return "<button class=\"btn small edit-only\" type=\"button\" data-addemp=\"" + esc(p.id) + "\">Add " + esc(p.name.split(" ")[0]) + "</button>";
+        return "<button class=\"btn small edit-only mgr-only\" type=\"button\" data-addemp=\"" + esc(p.id) + "\">Add " + esc(p.name.split(" ")[0]) + "</button>";
       }).join("") + "</div>";
     }
     var ex = (r.settings && r.settings.exempt) || [];
@@ -2059,6 +2367,7 @@ var Engine = (function () {
     var f = st.filter;
     if (st.dept && p.dept !== st.dept) return false;
     if (st.q) { var q = st.q.toLowerCase(); if (p.name.toLowerCase().indexOf(q) < 0 && p.id.indexOf(q) < 0) return false; }
+    if (!inScopePerson(p, st.report)) return false;
     if (f === "everyone") return true;
     if (f === "breaks") return p.breakCount > 0;
     if (f === "stretch") return p.stretch > 0;
@@ -2363,7 +2672,7 @@ var Engine = (function () {
     outPrint(html, "Week_" + r.weekStart + "_hours.html");
   }
   function printEdits() {
-    var r = st.report; if (!r) return;
+    var r = viewReport(st.report); if (!r) return;
     var info = {}; r.people.forEach(function (p) { info[p.id] = p; });
     var days = r.days.filter(function (d) { return d.edits && d.edits.length; })
       .sort(function (a, b) { return info[a.id].name.localeCompare(info[b.id].name) || a.date.localeCompare(b.date); });
@@ -2407,6 +2716,7 @@ var Engine = (function () {
       function red(c) { c.fill = REDF; c.font = REDT; }
       function dt(s) { var p = s.split("-"); return new Date(Date.UTC(+p[0], +p[1] - 1, +p[2])); }
       otSync(r);
+      r = viewReport(r);
       var people = r.people.slice().sort(function (a, b) { return score(b) - score(a) || a.name.localeCompare(b.name); });
       var title = "Week " + E.fmtDate(r.weekStart) + " to " + E.fmtDate(r.weekEnd);
 
@@ -2552,7 +2862,7 @@ var Engine = (function () {
     var q = ($("#empSearch").value || "").toLowerCase(), dep = $("#empDept").value, showIn = $("#showInactive").checked;
     var list = Object.keys(st.employees).map(function (k) { return st.employees[k]; }).filter(function (e) {
       if (!showIn && !isActive(e)) return false;
-      if (!inLoc(e)) return false;
+      if (!inLoc(e) || !inScopeEmp(e)) return false;
       if (dep && e.dept !== dep) return false;
       if (q && empName(e).toLowerCase().indexOf(q) < 0 && String(e.id).indexOf(q) < 0) return false;
       return true;
@@ -2579,7 +2889,39 @@ var Engine = (function () {
 
   /* ---------------- employee profile ---------------- */
   var DOC_SLOTS = ["doc1", "doc2", "doc3", "doc4", "doc5", "doc6", "doc7", "doc8"];
+  window.punchLists = function () { return { locs: st.locations || [], depts: deptsAll() }; };
   function myRole() { return window.punchRole || "owner"; }
+  // "Hours only" logins see and change only their departments/locations
+  function scope() { return myRole() === "hours" ? (window.punchScope || { locs: [], depts: [] }) : null; }
+  function inScopeEmp(e) {
+    var sc = scope(); if (!sc || !e) return true;
+    if (sc.locs && sc.locs.length && sc.locs.indexOf(empLoc(e)) < 0) return false;
+    if (sc.depts && sc.depts.length && sc.depts.indexOf(e.dept || "") < 0) return false;
+    return true;
+  }
+  function inScopePerson(p, r) {
+    var sc = scope(); if (!sc) return true;
+    var e = st.employees[p.id]; if (e) return inScopeEmp(e);
+    if (sc.locs && sc.locs.length && sc.locs.indexOf((r && r.location) || "main") < 0) return false;
+    if (sc.depts && sc.depts.length && sc.depts.indexOf(p.dept || "") < 0) return false;
+    return true;
+  }
+  /** The report as this login may see it (hours-only logins: their people, with totals recounted). */
+  function viewReport(r) {
+    r = r || st.report;
+    if (!r || !scope()) return r;
+    var people = r.people.filter(function (p) { return inScopePerson(p, r); }), ids = {};
+    people.forEach(function (p) { ids[p.id] = 1; });
+    var v = Object.assign({}, r, { people: people, days: r.days.filter(function (d) { return ids[d.id]; }), notInSchedule: [] });
+    function sum(k) { return people.reduce(function (t, p) { return t + (Number(p[k]) || 0); }, 0); }
+    function cnt(k) { return people.filter(function (p) { return p[k]; }).length; }
+    var r2 = function (n) { return Math.round(n * 100) / 100; };
+    v.totals = Object.assign({}, r.totals, { people: people.length, flagged: people.filter(function (p) { return p.breakCount || p.overDays || p.earlyDays || p.lateDays; }).length,
+      missed: sum("missed"), stretch: sum("stretch"), coffee: sum("coffee"), dinner: sum("dinner"), overDays: sum("overDays"), overHours: r2(sum("overHours")), overPeople: cnt("overDays"),
+      earlyDays: sum("earlyDays"), earlyPeople: cnt("earlyDays"), lateDays: sum("lateDays"), latePeople: cnt("lateDays"),
+      otHours: r2(sum("otHours")), otPeople: cnt("otHours"), otPay: r2(sum("otPay")), spreadDays: sum("spreadDays") });
+    return v;
+  }
   function isOwner() { return myRole() === "owner"; }
   function todayISO() { var t = new Date(); return t.getFullYear() + "-" + String(t.getMonth() + 1).padStart(2, "0") + "-" + String(t.getDate()).padStart(2, "0"); }
   function isActive(e) { var p = e.profile || {}; return e.active !== false && !(p.end && p.end <= todayISO()); }
@@ -2805,12 +3147,12 @@ var Engine = (function () {
     p.forms = {}; FORMS.forEach(function (x) { p.forms[x[0]] = v("form-" + x[0]); });
     p.payHistory = readRep("payh"); p.timeOff = readRep("off"); p.warnings = readRep("warn");
     p.ssn = v("ssn").replace(/\D/g, "").slice(0, 9);
-    p.notes = ($("#p-notes") || {}).value || "";
+    if ($("#p-notes")) p.notes = $("#p-notes").value || "";
     p.depCount = p.depCount === "" ? "" : Math.max(0, Math.round(Number(p.depCount) || 0));
     delete p.dependents; // only the number of dependents is kept
     p.fk = p.fk || newKey();
     p.files = JSON.parse(JSON.stringify(p.files || {}));
-    DOC_SLOTS.forEach(function (s) { if (p.files[s]) { p.files[s].label = (($("#lbl-" + s) || {}).value || p.files[s].label || "").trim(); p.files[s].expires = ($("#exp-" + s) || {}).value || ""; } });
+    DOC_SLOTS.forEach(function (s) { if (p.files[s]) { if ($("#lbl-" + s)) p.files[s].label = ($("#lbl-" + s).value || p.files[s].label || "").trim(); if ($("#exp-" + s)) p.files[s].expires = $("#exp-" + s).value || ""; } });
     return p;
   }
   function saveProfileFiles(e) {
@@ -2824,7 +3166,7 @@ var Engine = (function () {
         ops.push(st.db.doc(path).set({ data: f.data, name: f.name, type: f.type, label: label, added: f.added }));
       }
     });
-    DOC_SLOTS.forEach(function (s) { if (e.profile.files[s] && !(s in st.edit.files)) { e.profile.files[s].label = (($("#lbl-" + s) || {}).value || "").trim(); e.profile.files[s].expires = ($("#exp-" + s) || {}).value || ""; } });
+    DOC_SLOTS.forEach(function (s) { if (e.profile.files[s] && !(s in st.edit.files) && $("#lbl-" + s)) { e.profile.files[s].label = ($("#lbl-" + s).value || "").trim(); e.profile.files[s].expires = ($("#exp-" + s) || {}).value || ""; } });
     return Promise.all(ops);
   }
   function openDoc(slot) {
@@ -2839,6 +3181,7 @@ var Engine = (function () {
 
   function openEditor(id, preset) {
     if (myRole() === "viewer") return;
+    if (scope() && (!id || !st.employees[id] || !inScopeEmp(st.employees[id]))) return;
     var isNew = !id || !st.employees[id];
     var e = !isNew ? JSON.parse(JSON.stringify(st.employees[id])) : Object.assign({ id: "", first: "", last: "", dept: "", active: true, days: {} }, preset || {});
     st.edit = { origId: isNew ? null : id, files: {}, loaded: {}, profile: e.profile || null };
@@ -2859,8 +3202,8 @@ var Engine = (function () {
       "<label class=\"field\">Department<input type=\"text\" id=\"e-dept\" list=\"deptList\" value=\"" + esc(e.dept) + "\"></label>" +
       (multiLoc() ? "<label class=\"field\">Location<select id=\"e-loc\">" + st.locations.map(function (l) { return "<option value=\"" + esc(l.id) + "\"" + ((isNew && st.loc !== "all" ? st.loc : empLoc(e)) === l.id ? " selected" : "") + ">" + esc(l.name) + "</option>"; }).join("") + "</select></label>" : "") + "</div>" +
       "<label class=\"check\"><input type=\"checkbox\" id=\"e-active\"" + (e.active !== false ? " checked" : "") + "> Active (shows on reports and printed cards)</label>" +
-      "<div class=\"ed-tabs seg\" role=\"group\" aria-label=\"Sections\"><button type=\"button\" data-edtab=\"sched\" aria-pressed=\"true\">Schedule</button><button type=\"button\" data-edtab=\"prof\" aria-pressed=\"false\">Profile and documents</button></div>" +
-      "<div id=\"edProf\" hidden>" + profileHtml(e) + "</div>" +
+      (scope() ? "" : "<div class=\"ed-tabs seg\" role=\"group\" aria-label=\"Sections\"><button type=\"button\" data-edtab=\"sched\" aria-pressed=\"true\">Schedule</button><button type=\"button\" data-edtab=\"prof\" aria-pressed=\"false\">Profile and documents</button></div>" +
+      "<div id=\"edProf\" hidden>" + profileHtml(e) + "</div>") +
       "<div id=\"edSched\"><div class=\"tbl-wrap\" style=\"margin-top:12px\"><table class=\"days-edit\"><thead><tr><th>Day</th><th></th><th>From</th><th>Till</th><th class=\"num\">Hours</th></tr></thead><tbody>" + dayRows +
       "<tr><td colspan=\"4\"><b>Week total</b> <span class=\"muted\" style=\"font-size:.85rem\">(a Till earlier than From means past midnight)</span></td><td class=\"num\"><b id=\"h-week\"></b></td></tr></tbody></table></div></div>" +
       "<div class=\"ed-actions\"><button class=\"btn primary\" type=\"submit\">Save</button><button class=\"btn\" type=\"button\" id=\"edCancel\">Cancel</button><span class=\"msg\" id=\"edMsg\"></span><span class=\"grow\"></span>" +
@@ -2868,7 +3211,9 @@ var Engine = (function () {
       "</div></form>";
     ed.hidden = false;
     recalcEditor();
-    if (!isNew) loadProfileFiles(e);
+    if (!isNew && !scope()) loadProfileFiles(e);
+    // hours-only logins change the schedule, not who the person is or where they belong
+    if (scope()) $all("#e-id, #e-first, #e-last, #e-dept, #e-loc, #e-active", ed).forEach(function (x) { x.disabled = true; });
     ed.scrollIntoView({ behavior: "smooth", block: "start" });
     $("#e-" + (isNew && !e.id ? "id" : "first")).focus({ preventScroll: true });
   }
@@ -3140,7 +3485,7 @@ var Engine = (function () {
   /* ---------------- print ---------------- */
   function printList() {
     var mode = ($("input[name=prMode]:checked") || {}).value || "all";
-    var all = Object.keys(st.employees).map(function (k) { return st.employees[k]; }).filter(function (e) { return isActive(e) && inLoc(e); })
+    var all = Object.keys(st.employees).map(function (k) { return st.employees[k]; }).filter(function (e) { return isActive(e) && inLoc(e) && inScopeEmp(e); })
       .sort(function (a, b) { return (a.dept || "~").localeCompare(b.dept || "~") || empName(a).localeCompare(empName(b)); });
     if (mode === "dept") { var d = $("#prDept").value; return all.filter(function (e) { return e.dept === d; }); }
     if (mode === "pick") return all.filter(function (e) { return printPick[e.id]; });
@@ -3160,7 +3505,7 @@ var Engine = (function () {
     if (mode === "pick") {
       var q = ($("#prSearch").value || "").toLowerCase();
       $("#prList").innerHTML = Object.keys(st.employees).map(function (k) { return st.employees[k]; })
-        .filter(function (e) { return isActive(e) && (!q || empName(e).toLowerCase().indexOf(q) >= 0 || String(e.id).indexOf(q) >= 0); })
+        .filter(function (e) { return isActive(e) && inScopeEmp(e) && (!q || empName(e).toLowerCase().indexOf(q) >= 0 || String(e.id).indexOf(q) >= 0); })
         .sort(function (a, b) { return empName(a).localeCompare(empName(b)); })
         .map(function (e) { return "<label class=\"check\"><input type=\"checkbox\" data-pick=\"" + esc(e.id) + "\"" + (printPick[e.id] ? " checked" : "") + "> " + esc(empName(e)) + " <span class=\"idtag\">#" + esc(e.id) + "</span></label>"; }).join("") || "<p class=\"muted\">Nobody matches.</p>";
     }
@@ -3281,7 +3626,7 @@ var Engine = (function () {
     for (var i = 0; i < RULE_FIELDS.length; i++) {
       var f = RULE_FIELDS[i], v = $("#r-" + f).value;
       if (v === "") { m.className = "msg err"; m.textContent = "Fill in every number and time."; $("#r-" + f).focus(); return; }
-      S[f] = /Before|After/.test(f) ? v : Number(v);
+      S[f] = (f === "coffeeBefore" || f === "dinnerAfter") ? v : Number(v);
     }
     RULE_CHECKS.forEach(function (f) { S[f] = $("#r-" + f).checked; });
     S.exempt = $all("#r-exempt input:checked").map(function (x) { return x.value; });
